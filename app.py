@@ -8,10 +8,6 @@ import pandas as pd
 import requests
 import streamlit as st
 
-# [AJUSTE PONTUAL] Restrição por IP (somente adiciona, sem alterar fluxo existente)
-import ipaddress
-
-
 APP_TITLE = "YVORA Wine Pairing"
 BRAND_BG = "#EFE7DD"
 BRAND_BLUE = "#0E2A47"
@@ -28,7 +24,6 @@ POSSIBLE_LOGOS = [
     BASE_DIR / "assets" / "yvora_logo.png",
 ]
 
-
 def _find_logo_path() -> Path:
     for p in POSSIBLE_LOGOS:
         try:
@@ -39,27 +34,7 @@ def _find_logo_path() -> Path:
     # Default to root path (keeps a stable absolute path string even if missing)
     return POSSIBLE_LOGOS[0]
 
-
 LOGO_LOCAL_PATH = _find_logo_path()
-
-
-def _get_secret(key: str, default: str = "") -> str:
-    try:
-        return st.secrets.get(key, default)
-    except Exception:
-        return default
-
-
-def norm_text(x) -> str:
-    if pd.isna(x):
-        return ""
-    s = str(x)
-    # evita alguns caracteres que às vezes viram símbolos em fontes/ambientes específicos
-    s = s.replace("—", "-").replace("–", "-").replace("•", "-")
-    s = unicodedata.normalize("NFC", s)
-    return s.strip()
-
-
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_asset_bytes(local_path: Path, fallback_url: str = "") -> Optional[bytes]:
     """Load an asset from repo (preferred) or from a public URL (fallback).
@@ -95,87 +70,21 @@ def render_logo(width: Optional[int] = None, use_container_width: bool = False):
         st.caption("Logo não encontrada. Inclua em assets/ ou configure LOGO_URL em secrets.")
 
 
-# ===============================
-# [AJUSTE PONTUAL] Restrição por IP do restaurante
-# Secrets esperado:
-# RESTAURANT_ALLOWED_IP_RANGES = "191.250.250.41/32"
-# Opcionalmente múltiplos separados por vírgula:
-# "191.250.250.41/32, 200.10.0.0/16"
-# ===============================
-def safe_client_ip() -> str:
-    """
-    Obtém o IP do cliente via headers do proxy do Streamlit Cloud.
-    Se não conseguir, retorna string vazia.
-    """
+def _get_secret(key: str, default: str = "") -> str:
     try:
-        from streamlit.runtime.scriptrunner import get_script_run_ctx
-
-        ctx = get_script_run_ctx()
-        if not ctx or not hasattr(ctx, "request"):
-            return ""
-
-        req = ctx.request
-        headers = req.headers or {}
-
-        xff = headers.get("X-Forwarded-For") or headers.get("x-forwarded-for")
-        if xff:
-            return xff.split(",")[0].strip()
-
-        xrip = headers.get("X-Real-IP") or headers.get("x-real-ip")
-        if xrip:
-            return xrip.strip()
-
-        return ""
+        return st.secrets.get(key, default)
     except Exception:
+        return default
+
+
+def norm_text(x) -> str:
+    if pd.isna(x):
         return ""
-
-
-def _parse_ip_ranges(raw: str) -> List[ipaddress._BaseNetwork]:
-    raw = (raw or "").strip()
-    if not raw:
-        return []
-
-    parts = [p.strip() for p in raw.replace(";", ",").split(",") if p.strip()]
-    nets: List[ipaddress._BaseNetwork] = []
-    for p in parts:
-        try:
-            nets.append(ipaddress.ip_network(p, strict=False))
-        except Exception:
-            # Se vier um IP puro sem /32, tenta converter automaticamente
-            try:
-                ip = ipaddress.ip_address(p)
-                if ip.version == 4:
-                    nets.append(ipaddress.ip_network(f"{p}/32", strict=False))
-                else:
-                    nets.append(ipaddress.ip_network(f"{p}/128", strict=False))
-            except Exception:
-                continue
-    return nets
-
-
-def is_restaurant_ip_allowed() -> bool:
-    """
-    Se RESTAURANT_ALLOWED_IP_RANGES não estiver configurado, não bloqueia nada.
-    Se estiver configurado e não conseguir identificar IP do cliente, bloqueia.
-    """
-    raw = _get_secret("RESTAURANT_ALLOWED_IP_RANGES", "")
-    raw = norm_text(raw)
-    if not raw:
-        return True
-
-    nets = _parse_ip_ranges(raw)
-    if not nets:
-        return True
-
-    ip_str = safe_client_ip()
-    if not ip_str:
-        return False
-
-    try:
-        ip = ipaddress.ip_address(ip_str)
-        return any(ip in n for n in nets)
-    except Exception:
-        return False
+    s = str(x)
+    # evita alguns caracteres que às vezes viram símbolos em fontes/ambientes específicos
+    s = s.replace("—", "-").replace("–", "-").replace("•", "-")
+    s = unicodedata.normalize("NFC", s)
+    return s.strip()
 
 
 def normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
@@ -310,17 +219,6 @@ def dm_login_block() -> bool:
 
     with st.sidebar:
         st.markdown("### Acesso DM")
-
-        # [AJUSTE PONTUAL] Restringe o login DM ao IP do restaurante quando a regra estiver configurada
-        # Não muda o resto da lógica: apenas bloqueia o botão Entrar fora do IP permitido.
-        ip_rule_on = bool(norm_text(_get_secret("RESTAURANT_ALLOWED_IP_RANGES", "")))
-        allowed_here = is_restaurant_ip_allowed()
-
-        if ip_rule_on and not allowed_here and not st.session_state.dm:
-            st.error("Acesso DM permitido apenas na rede do restaurante.")
-            st.caption(f"IP detectado: {safe_client_ip() or 'indisponível'}")
-            return False
-
         if st.session_state.dm:
             st.success("Modo DM ativo")
             if st.button("Sair do DM", use_container_width=True):
@@ -427,9 +325,7 @@ def standardize_wines(wines_df: pd.DataFrame) -> pd.DataFrame:
     out["nome_vinho"] = df[c_nome] if c_nome else ""
     out["preco_num"] = df[c_price].apply(to_float) if c_price else None
     out["estoque"] = df[c_stock].apply(lambda x: to_int(x, 0)) if c_stock else 0
-    out["ativo"] = (
-        df[c_active].apply(lambda x: 1 if norm_text(x).lower() in ["1", "1.0", "true", "sim"] else 0) if c_active else 0
-    )
+    out["ativo"] = df[c_active].apply(lambda x: 1 if norm_text(x).lower() in ["1", "1.0", "true", "sim"] else 0) if c_active else 0
 
     out["id_vinho"] = out["id_vinho"].apply(norm_text)
     out["nome_vinho"] = out["nome_vinho"].apply(norm_text)
