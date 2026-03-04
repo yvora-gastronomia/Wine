@@ -228,16 +228,6 @@ def set_page_style():
             padding: 14px 16px;
             border: 1px solid rgba(14,42,71,0.08);
         }}
-        .yvora-pill {{
-            display: inline-block;
-            padding: 4px 10px;
-            border-radius: 999px;
-            border: 1px solid rgba(14,42,71,0.20);
-            color: {BRAND_BLUE};
-            font-size: 0.85rem;
-            margin-right: 6px;
-            background: rgba(255,255,255,0.50);
-        }}
         .yvora-chip {{
             display: inline-flex;
             align-items: center;
@@ -250,6 +240,7 @@ def set_page_style():
             margin-right: 6px;
             margin-top: 6px;
             background: rgba(255,255,255,0.55);
+            white-space: nowrap;
         }}
         .yvora-quote {{
             background: rgba(255,255,255,0.65);
@@ -267,7 +258,7 @@ def set_page_style():
         }}
         .yvora-meters {{
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr;
             gap: 8px 12px;
             margin-top: 10px;
         }}
@@ -299,22 +290,30 @@ def set_page_style():
             background: rgba(14,42,71,0.55);
             width: 0%;
         }}
-        .yvora-icons {{
-            display: flex;
-            flex-wrap: wrap;
+
+        /* RESUMO VISUAL: evita palavras "interrompidas" */
+        .yvora-summary {{
+            display: grid;
+            grid-template-columns: 1fr;
             gap: 8px;
             margin-top: 10px;
         }}
-        .yvora-iconbox {{
-            display: inline-flex;
-            gap: 8px;
-            align-items: center;
+        .yvora-line {{
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
             background: rgba(255,255,255,0.55);
             border: 1px solid rgba(14,42,71,0.10);
-            padding: 8px 10px;
+            padding: 9px 10px;
             border-radius: 12px;
             color: {BRAND_BLUE};
-            font-size: 0.90rem;
+            font-size: 0.92rem;
+            line-height: 1.25rem;
+        }}
+        .yvora-line span {{
+            white-space: normal;
+            word-break: normal;
+            overflow-wrap: anywhere;
         }}
         </style>
         """,
@@ -420,6 +419,26 @@ def standardize_menu(menu_df: pd.DataFrame) -> pd.DataFrame:
     return out.drop_duplicates(subset=["id_prato", "nome_prato"])
 
 
+def _normalize_wine_type(raw: str) -> str:
+    t = norm_text(raw).lower()
+    if not t:
+        return ""
+    # heurística simples
+    if "espum" in t or "spark" in t or "champ" in t:
+        return "Espumante"
+    if "rose" in t or "rosé" in t:
+        return "Rosé"
+    if "branco" in t or "white" in t:
+        return "Branco"
+    if "tinto" in t or "red" in t:
+        return "Tinto"
+    if "laranja" in t or "orange" in t:
+        return "Laranja"
+    if "sobremesa" in t or "doce" in t or "dessert" in t or "porto" in t or "sherry" in t:
+        return "Sobremesa"
+    return raw.strip().title()
+
+
 def standardize_wines(wines_df: pd.DataFrame) -> pd.DataFrame:
     df = wines_df.copy()
 
@@ -434,6 +453,7 @@ def standardize_wines(wines_df: pd.DataFrame) -> pd.DataFrame:
     c_price = pick(["price", "preco", "preço", "valor"])
     c_stock = pick(["estoque", "stock", "qtd", "quantidade"])
     c_active = pick(["active", "ativo", "status"])
+    c_type = pick(["tipo", "cor", "estilo", "wine_type", "type", "categoria"])
 
     out = pd.DataFrame()
     out["id_vinho"] = df[c_id] if c_id else ""
@@ -441,9 +461,12 @@ def standardize_wines(wines_df: pd.DataFrame) -> pd.DataFrame:
     out["preco_num"] = df[c_price].apply(to_float) if c_price else None
     out["estoque"] = df[c_stock].apply(lambda x: to_int(x, 0)) if c_stock else 0
     out["ativo"] = df[c_active].apply(lambda x: 1 if norm_text(x).lower() in ["1", "1.0", "true", "sim"] else 0) if c_active else 0
+    out["tipo_vinho"] = df[c_type] if c_type else ""
 
     out["id_vinho"] = out["id_vinho"].apply(norm_text)
     out["nome_vinho"] = out["nome_vinho"].apply(norm_text)
+    out["tipo_vinho"] = out["tipo_vinho"].apply(_normalize_wine_type)
+
     m = out["id_vinho"].eq("")
     out.loc[m, "id_vinho"] = out.loc[m, "nome_vinho"]
 
@@ -476,12 +499,6 @@ def _pct_from_5(n: int) -> int:
 
 
 def _parse_profile_line(text: str) -> Dict[str, str]:
-    """
-    Expected format (recommended in a_melhor_para):
-    "acidez: X/5 | corpo: X/5 | tanino: X/5 | final: curto/médio/longo | aromas: ..."
-
-    Works even if parts are missing.
-    """
     t = norm_text(text).lower()
     out: Dict[str, str] = {}
 
@@ -518,7 +535,7 @@ def _parse_profile_line(text: str) -> Dict[str, str]:
 
 def _guess_strategy(text: str) -> str:
     t = norm_text(text).lower()
-    if any(k in t for k in ["limpeza", "corta a gordura", "limpa", "refresh", "refresca"]):
+    if any(k in t for k in ["estratégia: limpeza", "estrategia: limpeza", "limpeza", "corta a gordura", "limpa o paladar", "refresca"]):
         return "Limpeza"
     if any(k in t for k in ["ponte arom", "eco", "conversa", "dialog", "repete aromas"]):
         return "Ponte aromática"
@@ -526,30 +543,48 @@ def _guess_strategy(text: str) -> str:
         return "Contraste"
     if any(k in t for k in ["amplifica", "realça", "aumenta", "eleva"]):
         return "Amplificação"
-    if any(k in t for k in ["equilíbrio", "equilibra", "balance", "harmonia"]):
+    if any(k in t for k in ["equilíbrio", "equilibra", "balance"]):
         return "Equilíbrio"
     return "Estratégia"
 
 
-def _summarize_text(text: str, max_len: int = 140) -> str:
+def truncate_words(text: str, max_len: int) -> str:
     s = norm_text(text)
     if len(s) <= max_len:
         return s
-    return s[: max_len - 1].rstrip() + "…"
+    parts = s.split()
+    out = []
+    total = 0
+    for w in parts:
+        add = len(w) + (1 if out else 0)
+        if total + add > max_len - 1:
+            break
+        out.append(w)
+        total += add
+    if not out:
+        return s[: max_len - 1].rstrip() + "…"
+    return " ".join(out).rstrip() + "…"
+
+
+def first_sentence(text: str) -> str:
+    s = norm_text(text)
+    if not s:
+        return ""
+    # pega até o primeiro ponto final "forte"
+    m = re.split(r"(?<=[.!?])\s+", s)
+    if m and m[0]:
+        return m[0]
+    return s
 
 
 def render_visual_profile(row: Dict):
     prof = _parse_profile_line(row.get("a_melhor_para", ""))
-
-    has_any = any(k in prof for k in ["acidez", "corpo", "tanino", "final", "aromas"])
-    if not has_any:
+    if not prof:
         return
 
     ac = int(prof.get("acidez", "0")) if prof.get("acidez") else None
     co = int(prof.get("corpo", "0")) if prof.get("corpo") else None
     ta = int(prof.get("tanino", "0")) if prof.get("tanino") else None
-    fi = prof.get("final", "")
-    ar = prof.get("aromas", "")
 
     st.markdown("<div class='yvora-meters'>", unsafe_allow_html=True)
 
@@ -571,29 +606,28 @@ def render_visual_profile(row: Dict):
     meter("Corpo", co)
     meter("Tanino", ta)
 
-    if fi:
-        st.markdown(
-            f"""
-            <div class="yvora-meter">
-              <div class="yvora-meter-top"><span>Final</span><span>{fi}</span></div>
-              <div class="yvora-bar"><div class="yvora-bar-fill" style="width:75%"></div></div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
     st.markdown("</div>", unsafe_allow_html=True)
 
-    if ar:
-        st.markdown(f"<div class='yvora-mini'>Aromas: {ar}</div>", unsafe_allow_html=True)
+    fi = prof.get("final", "")
+    ar = prof.get("aromas", "")
+    if fi or ar:
+        line = []
+        if fi:
+            line.append(f"Final: {fi}")
+        if ar:
+            line.append(f"Aromas: {ar}")
+        st.markdown(f"<div class='yvora-mini'>{'  |  '.join(line)}</div>", unsafe_allow_html=True)
 
 
-def render_icon_row(row: Dict):
+def render_icon_row(row: Dict, wine_type: str):
     strategy = _guess_strategy(row.get("por_que_combo", ""))
     rot = norm_text(row.get("rotulo_valor", "$")) or "$"
 
     chips = []
     chips.append(f"<span class='yvora-chip'>🏷️ {rot}</span>")
+
+    if wine_type:
+        chips.append(f"<span class='yvora-chip'>🍷 {wine_type}</span>")
 
     if strategy and strategy != "Estratégia":
         icon = "🧭"
@@ -612,49 +646,53 @@ def render_icon_row(row: Dict):
     st.markdown("".join(chips), unsafe_allow_html=True)
 
 
-def render_recos_block(title: str, p_subset: pd.DataFrame):
+def render_recos_block(title: str, p_subset: pd.DataFrame, wines_type_map: Dict[str, str]):
     st.markdown("<div class='yvora-card'>", unsafe_allow_html=True)
     st.markdown(f"#### {title}")
 
     order = {"$$$": 0, "$$": 1, "$": 2}
     p_subset = p_subset.copy()
     p_subset["ord"] = p_subset["rotulo_valor"].apply(lambda x: order.get(norm_text(x), 9))
-
-    # Your generator creates exactly 2 per key. We still keep top 3 as a safe cap.
     p_subset = p_subset.sort_values(["ord", "nome_vinho"], ascending=True).head(3)
 
     for _, row in p_subset.iterrows():
         nome_vinho = norm_text(row.get("nome_vinho", ""))
+        id_vinho = norm_text(row.get("id_vinho", ""))
+        wine_type = wines_type_map.get(id_vinho, "")
+
         st.markdown(f"### {nome_vinho}")
 
-        render_icon_row(row)
+        render_icon_row(row, wine_type)
 
+        # Frase de mesa (curta)
         frase = norm_text(row.get("frase_mesa", ""))
         if frase:
-            st.markdown(f"<div class='yvora-quote'>💬 {frase}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='yvora-quote'>💬 {truncate_words(frase, 150)}</div>", unsafe_allow_html=True)
 
-        # Visual profile (scales)
+        # Escalas (sempre que a_melhor_para estiver no padrão)
         render_visual_profile(row)
 
-        # Small, visual trio (short summaries)
-        pc = _summarize_text(row.get("por_que_carne", ""), 120)
-        pq = _summarize_text(row.get("por_que_queijo", ""), 120)
-        pcombo = _summarize_text(row.get("por_que_combo", ""), 160)
+        # Sensação final: curta, objetiva e sem cortar palavra
+        por_vale = norm_text(row.get("por_que_vale", ""))
+        sensacao = first_sentence(por_vale) if por_vale else first_sentence(row.get("por_que_combo", ""))
+        if sensacao:
+            st.caption("✨ " + truncate_words(sensacao, 140))
+
+        # Tríade resumida: 3 linhas curtas (sem quebrar palavra)
+        pc_short = truncate_words(row.get("por_que_carne", ""), 110)
+        pq_short = truncate_words(row.get("por_que_queijo", ""), 110)
+        combo_short = truncate_words(row.get("por_que_combo", ""), 140)
 
         st.markdown(
             f"""
-            <div class="yvora-icons">
-              <div class="yvora-iconbox">🥩 <span>{pc}</span></div>
-              <div class="yvora-iconbox">🧀 <span>{pq}</span></div>
-              <div class="yvora-iconbox">⚖️ <span>{pcombo}</span></div>
+            <div class="yvora-summary">
+              <div class="yvora-line">🥩 <span>{pc_short}</span></div>
+              <div class="yvora-line">🧀 <span>{pq_short}</span></div>
+              <div class="yvora-line">⚖️ <span>{combo_short}</span></div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-
-        por_vale = norm_text(row.get("por_que_vale", ""))
-        if por_vale:
-            st.caption(por_vale)
 
         with st.expander("Detalhes completos"):
             full_pc = norm_text(row.get("por_que_carne", ""))
@@ -707,6 +745,7 @@ def render_client(menu: pd.DataFrame, wines: pd.DataFrame, pairings: pd.DataFram
 
     wines_dict = wines.to_dict(orient="records")
     available_ids = {w["id_vinho"] for w in wines_dict if is_wine_available_now(w)}
+    wines_type_map = {norm_text(w["id_vinho"]): norm_text(w.get("tipo_vinho", "")) for w in wines_dict}
 
     if len(selected_ids) == 2:
         key_pair = make_key_for_pratos(selected_ids)
@@ -719,7 +758,7 @@ def render_client(menu: pd.DataFrame, wines: pd.DataFrame, pairings: pd.DataFram
                 unsafe_allow_html=True,
             )
         else:
-            render_recos_block("Para os 2 pratos (equilíbrio do conjunto)", p_pair)
+            render_recos_block("Para os 2 pratos (equilíbrio do conjunto)", p_pair, wines_type_map)
 
         st.write("")
 
@@ -738,7 +777,7 @@ def render_client(menu: pd.DataFrame, wines: pd.DataFrame, pairings: pd.DataFram
             )
             continue
 
-        render_recos_block(prato_nome, p_one)
+        render_recos_block(prato_nome, p_one, wines_type_map)
 
 
 def render_dm(menu: pd.DataFrame, wines: pd.DataFrame, pairings: pd.DataFrame):
@@ -757,8 +796,8 @@ def render_dm(menu: pd.DataFrame, wines: pd.DataFrame, pairings: pd.DataFrame):
     st.write(f"Vinhos disponíveis agora: **{len(available_ids)}**")
     st.write(f"Linhas de pairings ativas: **{len(pairings)}**")
 
-    st.markdown("### Checagem do formato visual")
-    st.caption("Para aparecerem as escalas, inclua em a_melhor_para o padrão: acidez: X/5 | corpo: X/5 | tanino: X/5 | final: curto/médio/longo | aromas: ...")
+    st.markdown("### Padrão necessário para as escalas")
+    st.caption("Em a_melhor_para: acidez: X/5 | corpo: X/5 | tanino: X/5 | final: curto/médio/longo | aromas: ...")
 
 
 def main():
