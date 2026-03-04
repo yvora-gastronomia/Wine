@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 import unicodedata
 from typing import Dict, List, Optional, Tuple
-from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
+from urllib.parse import urlparse, parse_qs, urlencode
 
 import pandas as pd
 import requests
@@ -124,13 +124,6 @@ def _decode_csv_bytes(raw: bytes) -> str:
 
 
 def _extract_sheet_id_and_gid(url: str) -> Tuple[str, str]:
-    """
-    Returns (sheet_id, gid). gid default "0" if absent.
-    Accepts:
-      - https://docs.google.com/spreadsheets/d/<ID>/edit#gid=123
-      - https://docs.google.com/spreadsheets/d/<ID>/... ?gid=123
-      - already export URLs (tries to parse)
-    """
     u = norm_text(url).replace("\n", "").replace(" ", "")
     if not u:
         return "", "0"
@@ -147,23 +140,16 @@ def _extract_sheet_id_and_gid(url: str) -> Tuple[str, str]:
 
 
 def _to_gsheet_csv_export_url(url: str) -> str:
-    """
-    Normalize any Google Sheet URL to an export CSV URL when possible.
-    If url is already a googleusercontent export, just return it (sanitized).
-    """
     u = norm_text(url).replace("\n", "").strip()
     if not u:
         return ""
 
-    # If it is a googleusercontent export link, keep it (but sanitize spaces/newlines)
     if "googleusercontent.com" in u:
         return u.replace(" ", "")
 
-    # If it already looks like an export link, keep it
     if "docs.google.com/spreadsheets" in u and "export" in u and "format=csv" in u:
         return u
 
-    # If it is a normal sheet link, convert to export CSV
     if "docs.google.com/spreadsheets" in u:
         sheet_id, gid = _extract_sheet_id_and_gid(u)
         if sheet_id:
@@ -171,7 +157,6 @@ def _to_gsheet_csv_export_url(url: str) -> str:
             params = {"format": "csv", "gid": gid or "0"}
             return base + "?" + urlencode(params)
 
-    # Unknown format, return as is
     return u
 
 
@@ -185,16 +170,12 @@ def load_csv_from_url(url: str) -> pd.DataFrame:
         r = requests.get(export_url, timeout=30)
         r.raise_for_status()
     except requests.HTTPError as e:
-        # Most common causes:
-        # - sheet not shared to anyone with link
-        # - requires auth
-        # - malformed export URL/gid
         raise ValueError(
-            "Falha ao baixar o CSV do Google Sheets.\n\n"
+            "Falha ao baixar CSV do Google Sheets.\n\n"
             "Verifique:\n"
-            "1) A planilha está compartilhada como 'Anyone with the link can view' (ou publicada).\n"
+            "1) A planilha está compartilhada como 'Anyone with the link can view'.\n"
             "2) O link aponta para a aba correta (gid correto).\n"
-            "3) Use preferencialmente o link normal do Sheets (edit#gid=...) e o app converte automaticamente.\n\n"
+            "3) Use o link normal do Sheets (edit#gid=...) que o app converte automaticamente.\n\n"
             f"Detalhe técnico: {e}"
         )
 
@@ -237,8 +218,9 @@ def set_page_style():
         .yvora-card {{
             background: {BRAND_CARD};
             border-radius: 16px;
-            padding: 18px 18px;
+            padding: 16px 16px;
             border: 1px solid rgba(14,42,71,0.10);
+            margin-bottom: 14px;
         }}
         .yvora-warn {{
             background: {BRAND_WARN};
@@ -256,32 +238,83 @@ def set_page_style():
             margin-right: 6px;
             background: rgba(255,255,255,0.50);
         }}
-        .yvora-quote {{
+        .yvora-chip {{
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(14,42,71,0.16);
+            color: {BRAND_BLUE};
+            font-size: 0.82rem;
+            margin-right: 6px;
+            margin-top: 6px;
             background: rgba(255,255,255,0.55);
+        }}
+        .yvora-quote {{
+            background: rgba(255,255,255,0.65);
             border: 1px solid rgba(14,42,71,0.12);
             border-radius: 12px;
             padding: 10px 12px;
             margin: 10px 0 8px 0;
             color: {BRAND_BLUE};
+            font-weight: 600;
         }}
-        .yvora-profile {{
-            background: rgba(255,255,255,0.45);
-            border: 1px solid rgba(14,42,71,0.10);
-            border-radius: 12px;
-            padding: 10px 12px;
-            margin: 8px 0 8px 0;
+        .yvora-mini {{
+            color: {BRAND_MUTED};
+            font-size: 0.92rem;
+            margin-top: 2px;
+        }}
+        .yvora-meters {{
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 12px;
+            margin-top: 10px;
         }}
         .yvora-meter {{
+            background: rgba(255,255,255,0.55);
+            border: 1px solid rgba(14,42,71,0.10);
+            border-radius: 12px;
+            padding: 8px 10px;
+        }}
+        .yvora-meter-top {{
             display: flex;
             justify-content: space-between;
+            align-items: center;
             gap: 10px;
-            margin: 2px 0;
-            font-size: 0.92rem;
+            font-size: 0.88rem;
             color: {BRAND_BLUE};
+            margin-bottom: 6px;
         }}
-        .yvora-dots {{
-            letter-spacing: 1px;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        .yvora-bar {{
+            width: 100%;
+            height: 8px;
+            border-radius: 99px;
+            background: rgba(14,42,71,0.12);
+            overflow: hidden;
+        }}
+        .yvora-bar-fill {{
+            height: 8px;
+            border-radius: 99px;
+            background: rgba(14,42,71,0.55);
+            width: 0%;
+        }}
+        .yvora-icons {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 10px;
+        }}
+        .yvora-iconbox {{
+            display: inline-flex;
+            gap: 8px;
+            align-items: center;
+            background: rgba(255,255,255,0.55);
+            border: 1px solid rgba(14,42,71,0.10);
+            padding: 8px 10px;
+            border-radius: 12px;
+            color: {BRAND_BLUE};
+            font-size: 0.90rem;
         }}
         </style>
         """,
@@ -315,7 +348,6 @@ def dm_login_block() -> bool:
                     st.rerun()
                 else:
                     st.error("Senha inválida.")
-
     return bool(st.session_state.dm)
 
 
@@ -430,7 +462,7 @@ def standardize_pairings(pair_df: pd.DataFrame) -> pd.DataFrame:
     return p[p["ativo"] == 1].copy()
 
 
-def _clamp01(x: int) -> int:
+def _clamp_0_5(x: int) -> int:
     try:
         v = int(x)
     except Exception:
@@ -438,84 +470,146 @@ def _clamp01(x: int) -> int:
     return max(0, min(5, v))
 
 
-def _dots(n: int) -> str:
-    n = _clamp01(n)
-    return "●" * n + "○" * (5 - n)
+def _pct_from_5(n: int) -> int:
+    n = _clamp_0_5(n)
+    return int((n / 5) * 100)
 
 
-def parse_sensory_from_text(*texts: str) -> Dict[str, str]:
+def _parse_profile_line(text: str) -> Dict[str, str]:
     """
-    Parses sensory hints from fields. Best practice is to output this in a_melhor_para:
+    Expected format (recommended in a_melhor_para):
     "acidez: X/5 | corpo: X/5 | tanino: X/5 | final: curto/médio/longo | aromas: ..."
 
-    Non-breaking: if absent, returns empty dict.
+    Works even if parts are missing.
     """
-    blob = " | ".join([norm_text(t) for t in texts if norm_text(t)])
-    b = blob.lower()
+    t = norm_text(text).lower()
+    out: Dict[str, str] = {}
 
-    def pick_num(label: str) -> Optional[int]:
-        m = re.search(rf"{label}\s*[:=\-]?\s*(\d)\s*/\s*5", b)
+    def num(label: str) -> Optional[int]:
+        m = re.search(rf"{label}\s*[:=\-]?\s*(\d)\s*/\s*5", t)
         if m:
             return int(m.group(1))
-        m = re.search(rf"{label}\s*[:=\-]\s*(\d)\b", b)
+        m = re.search(rf"{label}\s*[:=\-]\s*(\d)\b", t)
         if m:
             return int(m.group(1))
         return None
 
-    out: Dict[str, str] = {}
-    ac = pick_num("acidez")
-    co = pick_num("corpo")
-    ta = pick_num("tanino")
+    ac = num("acidez")
+    co = num("corpo")
+    ta = num("tanino")
 
     if ac is not None:
-        out["acidez"] = _dots(ac)
+        out["acidez"] = str(_clamp_0_5(ac))
     if co is not None:
-        out["corpo"] = _dots(co)
+        out["corpo"] = str(_clamp_0_5(co))
     if ta is not None:
-        out["tanino"] = _dots(ta)
+        out["tanino"] = str(_clamp_0_5(ta))
 
-    m = re.search(r"final\s*[:=\-]?\s*(curto|medio|médio|longo)", b)
+    m = re.search(r"final\s*[:=\-]?\s*(curto|medio|médio|longo)", t)
     if m:
         out["final"] = m.group(1).replace("medio", "médio")
 
-    m = re.search(r"(aromas?|perfil\s+arom[aá]tico)\s*[:=\-]\s*([^|\n]{3,70})", blob, flags=re.IGNORECASE)
+    m = re.search(r"(aromas?|perfil\s+arom[aá]tico)\s*[:=\-]\s*([^|\n]{3,90})", norm_text(text), flags=re.IGNORECASE)
     if m:
-        out["arom"] = norm_text(m.group(2))
+        out["aromas"] = norm_text(m.group(2))
 
     return out
 
 
-def render_sensory_profile(row: Dict):
-    sens = parse_sensory_from_text(
-        row.get("a_melhor_para", ""),
-        row.get("por_que_combo", ""),
-        row.get("por_que_vale", ""),
-        row.get("frase_mesa", ""),
-    )
-    if not sens:
+def _guess_strategy(text: str) -> str:
+    t = norm_text(text).lower()
+    if any(k in t for k in ["limpeza", "corta a gordura", "limpa", "refresh", "refresca"]):
+        return "Limpeza"
+    if any(k in t for k in ["ponte arom", "eco", "conversa", "dialog", "repete aromas"]):
+        return "Ponte aromática"
+    if any(k in t for k in ["contraste", "oposição", "contraponto"]):
+        return "Contraste"
+    if any(k in t for k in ["amplifica", "realça", "aumenta", "eleva"]):
+        return "Amplificação"
+    if any(k in t for k in ["equilíbrio", "equilibra", "balance", "harmonia"]):
+        return "Equilíbrio"
+    return "Estratégia"
+
+
+def _summarize_text(text: str, max_len: int = 140) -> str:
+    s = norm_text(text)
+    if len(s) <= max_len:
+        return s
+    return s[: max_len - 1].rstrip() + "…"
+
+
+def render_visual_profile(row: Dict):
+    prof = _parse_profile_line(row.get("a_melhor_para", ""))
+
+    has_any = any(k in prof for k in ["acidez", "corpo", "tanino", "final", "aromas"])
+    if not has_any:
         return
 
-    st.markdown("**Perfil sensorial**")
+    ac = int(prof.get("acidez", "0")) if prof.get("acidez") else None
+    co = int(prof.get("corpo", "0")) if prof.get("corpo") else None
+    ta = int(prof.get("tanino", "0")) if prof.get("tanino") else None
+    fi = prof.get("final", "")
+    ar = prof.get("aromas", "")
 
-    lines = []
-    if sens.get("acidez"):
-        lines.append(
-            f"<div class='yvora-meter'><span>Acidez</span><span class='yvora-dots'>{sens['acidez']}</span></div>"
-        )
-    if sens.get("corpo"):
-        lines.append(
-            f"<div class='yvora-meter'><span>Corpo</span><span class='yvora-dots'>{sens['corpo']}</span></div>"
-        )
-    if sens.get("tanino"):
-        lines.append(
-            f"<div class='yvora-meter'><span>Tanino</span><span class='yvora-dots'>{sens['tanino']}</span></div>"
-        )
-    if sens.get("final"):
-        lines.append(f"<div class='yvora-meter'><span>Final</span><span>{sens['final']}</span></div>")
-    if sens.get("arom"):
-        lines.append(f"<div class='yvora-meter'><span>Aromas</span><span>{sens['arom']}</span></div>")
+    st.markdown("<div class='yvora-meters'>", unsafe_allow_html=True)
 
-    st.markdown("<div class='yvora-profile'>" + "".join(lines) + "</div>", unsafe_allow_html=True)
+    def meter(title: str, value_0_5: Optional[int]):
+        if value_0_5 is None:
+            return
+        pct = _pct_from_5(value_0_5)
+        st.markdown(
+            f"""
+            <div class="yvora-meter">
+              <div class="yvora-meter-top"><span>{title}</span><span>{value_0_5}/5</span></div>
+              <div class="yvora-bar"><div class="yvora-bar-fill" style="width:{pct}%"></div></div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    meter("Acidez", ac)
+    meter("Corpo", co)
+    meter("Tanino", ta)
+
+    if fi:
+        st.markdown(
+            f"""
+            <div class="yvora-meter">
+              <div class="yvora-meter-top"><span>Final</span><span>{fi}</span></div>
+              <div class="yvora-bar"><div class="yvora-bar-fill" style="width:75%"></div></div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    if ar:
+        st.markdown(f"<div class='yvora-mini'>Aromas: {ar}</div>", unsafe_allow_html=True)
+
+
+def render_icon_row(row: Dict):
+    strategy = _guess_strategy(row.get("por_que_combo", ""))
+    rot = norm_text(row.get("rotulo_valor", "$")) or "$"
+
+    chips = []
+    chips.append(f"<span class='yvora-chip'>🏷️ {rot}</span>")
+
+    if strategy and strategy != "Estratégia":
+        icon = "🧭"
+        if strategy == "Limpeza":
+            icon = "💧"
+        elif strategy == "Ponte aromática":
+            icon = "🌿"
+        elif strategy == "Contraste":
+            icon = "⚡"
+        elif strategy == "Amplificação":
+            icon = "🔥"
+        elif strategy == "Equilíbrio":
+            icon = "⚖️"
+        chips.append(f"<span class='yvora-chip'>{icon} {strategy}</span>")
+
+    st.markdown("".join(chips), unsafe_allow_html=True)
 
 
 def render_recos_block(title: str, p_subset: pd.DataFrame):
@@ -525,44 +619,64 @@ def render_recos_block(title: str, p_subset: pd.DataFrame):
     order = {"$$$": 0, "$$": 1, "$": 2}
     p_subset = p_subset.copy()
     p_subset["ord"] = p_subset["rotulo_valor"].apply(lambda x: order.get(norm_text(x), 9))
+
+    # Your generator creates exactly 2 per key. We still keep top 3 as a safe cap.
     p_subset = p_subset.sort_values(["ord", "nome_vinho"], ascending=True).head(3)
 
     for _, row in p_subset.iterrows():
-        rot = norm_text(row.get("rotulo_valor", "$")) or "$"
         nome_vinho = norm_text(row.get("nome_vinho", ""))
+        st.markdown(f"### {nome_vinho}")
 
-        st.markdown(f"<span class='yvora-pill'>{rot}</span>", unsafe_allow_html=True)
-        st.markdown(f"**{nome_vinho}**")
+        render_icon_row(row)
 
         frase = norm_text(row.get("frase_mesa", ""))
         if frase:
             st.markdown(f"<div class='yvora-quote'>💬 {frase}</div>", unsafe_allow_html=True)
 
-        render_sensory_profile(row)
+        # Visual profile (scales)
+        render_visual_profile(row)
+
+        # Small, visual trio (short summaries)
+        pc = _summarize_text(row.get("por_que_carne", ""), 120)
+        pq = _summarize_text(row.get("por_que_queijo", ""), 120)
+        pcombo = _summarize_text(row.get("por_que_combo", ""), 160)
+
+        st.markdown(
+            f"""
+            <div class="yvora-icons">
+              <div class="yvora-iconbox">🥩 <span>{pc}</span></div>
+              <div class="yvora-iconbox">🧀 <span>{pq}</span></div>
+              <div class="yvora-iconbox">⚖️ <span>{pcombo}</span></div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
         por_vale = norm_text(row.get("por_que_vale", ""))
         if por_vale:
             st.caption(por_vale)
 
-        with st.expander("Ver análise Michelin"):
-            pc = norm_text(row.get("por_que_carne", ""))
-            pq = norm_text(row.get("por_que_queijo", ""))
-            pcombo = norm_text(row.get("por_que_combo", ""))
-
-            if pc:
-                st.markdown("🥩 **Carne**")
-                st.write(pc)
-            if pq:
-                st.markdown("🧀 **Queijo**")
-                st.write(pq)
-            if pcombo:
-                st.markdown("⚖️ **Estratégia e equilíbrio do conjunto**")
-                st.write(pcombo)
-
+        with st.expander("Detalhes completos"):
+            full_pc = norm_text(row.get("por_que_carne", ""))
+            full_pq = norm_text(row.get("por_que_queijo", ""))
+            full_combo = norm_text(row.get("por_que_combo", ""))
             best = norm_text(row.get("a_melhor_para", ""))
-            if best:
-                st.markdown("⭐ **A melhor para**")
-                st.write(best)
+
+            colA, colB = st.columns(2)
+            with colA:
+                if full_pc:
+                    st.markdown("**🥩 Carne**")
+                    st.write(full_pc)
+                if full_pq:
+                    st.markdown("**🧀 Queijo**")
+                    st.write(full_pq)
+            with colB:
+                if full_combo:
+                    st.markdown("**⚖️ Conjunto**")
+                    st.write(full_combo)
+                if best:
+                    st.markdown("**⭐ Perfil do vinho**")
+                    st.write(best)
 
         st.divider()
 
@@ -592,7 +706,7 @@ def render_client(menu: pd.DataFrame, wines: pd.DataFrame, pairings: pd.DataFram
     selected_ids = selected["id_prato"].tolist()
 
     wines_dict = wines.to_dict(orient="records")
-    available_ids = set([w["id_vinho"] for w in wines_dict if is_wine_available_now(w)])
+    available_ids = {w["id_vinho"] for w in wines_dict if is_wine_available_now(w)}
 
     if len(selected_ids) == 2:
         key_pair = make_key_for_pratos(selected_ids)
@@ -639,9 +753,12 @@ def render_dm(menu: pd.DataFrame, wines: pd.DataFrame, pairings: pd.DataFrame):
     st.write(f"Pairings hash: `{sheet_hash(pairings)}`")
 
     wines_dict = wines.to_dict(orient="records")
-    available_ids = set([w["id_vinho"] for w in wines_dict if is_wine_available_now(w)])
+    available_ids = {w["id_vinho"] for w in wines_dict if is_wine_available_now(w)}
     st.write(f"Vinhos disponíveis agora: **{len(available_ids)}**")
     st.write(f"Linhas de pairings ativas: **{len(pairings)}**")
+
+    st.markdown("### Checagem do formato visual")
+    st.caption("Para aparecerem as escalas, inclua em a_melhor_para o padrão: acidez: X/5 | corpo: X/5 | tanino: X/5 | final: curto/médio/longo | aromas: ...")
 
 
 def main():
