@@ -1,8 +1,10 @@
 import hashlib
 import io
+import re
 from pathlib import Path
 import unicodedata
 from typing import Dict, List, Optional, Tuple
+from urllib.parse import urlparse, parse_qs, urlencode, urlunparse
 
 import pandas as pd
 import requests
@@ -15,10 +17,7 @@ BRAND_MUTED = "#6B7785"
 BRAND_CARD = "#F5EFE7"
 BRAND_WARN = "#F3D6CF"
 
-# Logo can live either at repo root (as in your current GitHub layout)
-# or inside an assets/ folder. The app will auto-detect.
 BASE_DIR = Path(__file__).resolve().parent
-
 POSSIBLE_LOGOS = [
     BASE_DIR / "yvora_logo.png",
     BASE_DIR / "assets" / "yvora_logo.png",
@@ -32,18 +31,30 @@ def _find_logo_path() -> Path:
                 return p
         except Exception:
             continue
-    # Default to root path (keeps a stable absolute path string even if missing)
     return POSSIBLE_LOGOS[0]
 
 
 LOGO_LOCAL_PATH = _find_logo_path()
 
 
+def _get_secret(key: str, default: str = "") -> str:
+    try:
+        return st.secrets.get(key, default)
+    except Exception:
+        return default
+
+
+def norm_text(x) -> str:
+    if pd.isna(x):
+        return ""
+    s = str(x)
+    s = s.replace("—", "-").replace("–", "-").replace("•", "-")
+    s = unicodedata.normalize("NFC", s)
+    return s.strip()
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_asset_bytes(local_path: Path, fallback_url: str = "") -> Optional[bytes]:
-    """Load an asset from repo (preferred) or from a public URL (fallback).
-    This avoids broken relative paths when deploying on Streamlit Cloud.
-    """
     try:
         if local_path.exists():
             return local_path.read_bytes()
@@ -62,33 +73,12 @@ def get_asset_bytes(local_path: Path, fallback_url: str = "") -> Optional[bytes]
 
 
 def render_logo(width: Optional[int] = None, use_container_width: bool = False):
-    """Renders the logo robustly.
-    Configure one of these in Streamlit secrets:
-    - LOGO_URL: public URL (recommended: GitHub raw URL)
-    """
     logo_url = _get_secret("LOGO_URL", "")
     b = get_asset_bytes(LOGO_LOCAL_PATH, logo_url)
     if b:
         st.image(b, width=width, use_container_width=use_container_width)
     else:
         st.caption("Logo não encontrada. Inclua em assets/ ou configure LOGO_URL em secrets.")
-
-
-def _get_secret(key: str, default: str = "") -> str:
-    try:
-        return st.secrets.get(key, default)
-    except Exception:
-        return default
-
-
-def norm_text(x) -> str:
-    if pd.isna(x):
-        return ""
-    s = str(x)
-    # evita alguns caracteres que às vezes viram símbolos em fontes/ambientes específicos
-    s = s.replace("—", "-").replace("–", "-").replace("•", "-")
-    s = unicodedata.normalize("NFC", s)
-    return s.strip()
 
 
 def normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
@@ -125,28 +115,90 @@ def sheet_hash(df: pd.DataFrame) -> str:
 
 
 def _decode_csv_bytes(raw: bytes) -> str:
-    # Google Sheets frequentemente vem como UTF-8 (às vezes com BOM)
     for enc in ("utf-8-sig", "utf-8"):
         try:
             return raw.decode(enc)
         except UnicodeDecodeError:
             pass
-    # fallback (evita crash, mas o ideal é nunca chegar aqui)
     return raw.decode("cp1252", errors="replace")
+
+
+def _extract_sheet_id_and_gid(url: str) -> Tuple[str, str]:
+    """
+    Returns (sheet_id, gid). gid default "0" if absent.
+    Accepts:
+      - https://docs.google.com/spreadsheets/d/<ID>/edit#gid=123
+      - https://docs.google.com/spreadsheets/d/<ID>/... ?gid=123
+      - already export URLs (tries to parse)
+    """
+    u = norm_text(url).replace("\n", "").replace(" ", "")
+    if not u:
+        return "", "0"
+
+    parsed = urlparse(u)
+    qs = parse_qs(parsed.query)
+    gid = (qs.get("gid", ["0"]) or ["0"])[0] or "0"
+
+    m = re.search(r"/spreadsheets/d/([a-zA-Z0-9-_]+)", u)
+    if m:
+        return m.group(1), gid
+
+    return "", gid
+
+
+def _to_gsheet_csv_export_url(url: str) -> str:
+    """
+    Normalize any Google Sheet URL to an export CSV URL when possible.
+    If url is already a googleusercontent export, just return it (sanitized).
+    """
+    u = norm_text(url).replace("\n", "").strip()
+    if not u:
+        return ""
+
+    # If it is a googleusercontent export link, keep it (but sanitize spaces/newlines)
+    if "googleusercontent.com" in u:
+        return u.replace(" ", "")
+
+    # If it already looks like an export link, keep it
+    if "docs.google.com/spreadsheets" in u and "export" in u and "format=csv" in u:
+        return u
+
+    # If it is a normal sheet link, convert to export CSV
+    if "docs.google.com/spreadsheets" in u:
+        sheet_id, gid = _extract_sheet_id_and_gid(u)
+        if sheet_id:
+            base = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export"
+            params = {"format": "csv", "gid": gid or "0"}
+            return base + "?" + urlencode(params)
+
+    # Unknown format, return as is
+    return u
 
 
 @st.cache_data(ttl=45)
 def load_csv_from_url(url: str) -> pd.DataFrame:
-    if not url or "docs.google.com/spreadsheets" not in url:
-        raise ValueError("URL inválida ou não configurada.")
+    export_url = _to_gsheet_csv_export_url(url)
+    if not export_url:
+        raise ValueError("URL vazia.")
 
-    r = requests.get(url, timeout=30)
-    r.raise_for_status()
+    try:
+        r = requests.get(export_url, timeout=30)
+        r.raise_for_status()
+    except requests.HTTPError as e:
+        # Most common causes:
+        # - sheet not shared to anyone with link
+        # - requires auth
+        # - malformed export URL/gid
+        raise ValueError(
+            "Falha ao baixar o CSV do Google Sheets.\n\n"
+            "Verifique:\n"
+            "1) A planilha está compartilhada como 'Anyone with the link can view' (ou publicada).\n"
+            "2) O link aponta para a aba correta (gid correto).\n"
+            "3) Use preferencialmente o link normal do Sheets (edit#gid=...) e o app converte automaticamente.\n\n"
+            f"Detalhe técnico: {e}"
+        )
 
-    # IMPORTANTE: não use r.text (encoding pode ser inferido errado).
     csv_text = _decode_csv_bytes(r.content)
-
-    # dtype=str e keep_default_na=False evitam NaN quebrando textos
     return pd.read_csv(io.StringIO(csv_text), dtype=str, keep_default_na=False)
 
 
@@ -378,19 +430,12 @@ def standardize_pairings(pair_df: pd.DataFrame) -> pd.DataFrame:
     return p[p["ativo"] == 1].copy()
 
 
-import re
-
-
 def _clamp01(x: int) -> int:
     try:
         v = int(x)
     except Exception:
         return 0
-    if v < 0:
-        return 0
-    if v > 5:
-        return 5
-    return v
+    return max(0, min(5, v))
 
 
 def _dots(n: int) -> str:
@@ -400,11 +445,10 @@ def _dots(n: int) -> str:
 
 def parse_sensory_from_text(*texts: str) -> Dict[str, str]:
     """
-    Attempts to parse sensory scores from any text field.
-    Supports patterns like:
-      acidez 4/5, acidez: 4, acidez=4
-      corpo 3/5, tanino 2/5, final longo
-    Returns dict with optional keys: acidez, corpo, tanino, final, arom
+    Parses sensory hints from fields. Best practice is to output this in a_melhor_para:
+    "acidez: X/5 | corpo: X/5 | tanino: X/5 | final: curto/médio/longo | aromas: ..."
+
+    Non-breaking: if absent, returns empty dict.
     """
     blob = " | ".join([norm_text(t) for t in texts if norm_text(t)])
     b = blob.lower()
@@ -419,7 +463,6 @@ def parse_sensory_from_text(*texts: str) -> Dict[str, str]:
         return None
 
     out: Dict[str, str] = {}
-
     ac = pick_num("acidez")
     co = pick_num("corpo")
     ta = pick_num("tanino")
@@ -443,10 +486,6 @@ def parse_sensory_from_text(*texts: str) -> Dict[str, str]:
 
 
 def render_sensory_profile(row: Dict):
-    """
-    Renders a compact Michelin-style sensory profile when data is present.
-    This is non-breaking: if no structured cues exist, it shows nothing.
-    """
     sens = parse_sensory_from_text(
         row.get("a_melhor_para", ""),
         row.get("por_que_combo", ""),
@@ -458,23 +497,23 @@ def render_sensory_profile(row: Dict):
 
     st.markdown("**Perfil sensorial**")
 
-    ac = sens.get("acidez", "")
-    co = sens.get("corpo", "")
-    ta = sens.get("tanino", "")
-    fi = sens.get("final", "")
-    ar = sens.get("arom", "")
-
     lines = []
-    if ac:
-        lines.append(f"<div class='yvora-meter'><span>Acidez</span><span class='yvora-dots'>{ac}</span></div>")
-    if co:
-        lines.append(f"<div class='yvora-meter'><span>Corpo</span><span class='yvora-dots'>{co}</span></div>")
-    if ta:
-        lines.append(f"<div class='yvora-meter'><span>Tanino</span><span class='yvora-dots'>{ta}</span></div>")
-    if fi:
-        lines.append(f"<div class='yvora-meter'><span>Final</span><span>{fi}</span></div>")
-    if ar:
-        lines.append(f"<div class='yvora-meter'><span>Aromas</span><span>{ar}</span></div>")
+    if sens.get("acidez"):
+        lines.append(
+            f"<div class='yvora-meter'><span>Acidez</span><span class='yvora-dots'>{sens['acidez']}</span></div>"
+        )
+    if sens.get("corpo"):
+        lines.append(
+            f"<div class='yvora-meter'><span>Corpo</span><span class='yvora-dots'>{sens['corpo']}</span></div>"
+        )
+    if sens.get("tanino"):
+        lines.append(
+            f"<div class='yvora-meter'><span>Tanino</span><span class='yvora-dots'>{sens['tanino']}</span></div>"
+        )
+    if sens.get("final"):
+        lines.append(f"<div class='yvora-meter'><span>Final</span><span>{sens['final']}</span></div>")
+    if sens.get("arom"):
+        lines.append(f"<div class='yvora-meter'><span>Aromas</span><span>{sens['arom']}</span></div>")
 
     st.markdown("<div class='yvora-profile'>" + "".join(lines) + "</div>", unsafe_allow_html=True)
 
@@ -483,7 +522,6 @@ def render_recos_block(title: str, p_subset: pd.DataFrame):
     st.markdown("<div class='yvora-card'>", unsafe_allow_html=True)
     st.markdown(f"#### {title}")
 
-    # prefer: premium first when available, then by name. App shows up to 3 in this view.
     order = {"$$$": 0, "$$": 1, "$": 2}
     p_subset = p_subset.copy()
     p_subset["ord"] = p_subset["rotulo_valor"].apply(lambda x: order.get(norm_text(x), 9))
@@ -496,12 +534,10 @@ def render_recos_block(title: str, p_subset: pd.DataFrame):
         st.markdown(f"<span class='yvora-pill'>{rot}</span>", unsafe_allow_html=True)
         st.markdown(f"**{nome_vinho}**")
 
-        # Garçom friendly
         frase = norm_text(row.get("frase_mesa", ""))
         if frase:
             st.markdown(f"<div class='yvora-quote'>💬 {frase}</div>", unsafe_allow_html=True)
 
-        # Optional Michelin profile (non-breaking)
         render_sensory_profile(row)
 
         por_vale = norm_text(row.get("por_que_vale", ""))
