@@ -256,6 +256,12 @@ def set_page_style():
             font-size: 0.92rem;
             margin-top: 2px;
         }}
+        .yvora-kicker {{
+            color: {BRAND_BLUE};
+            font-size: 0.92rem;
+            margin-top: 8px;
+            font-weight: 650;
+        }}
         .yvora-meters {{
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
@@ -291,7 +297,7 @@ def set_page_style():
             width: 0%;
         }}
 
-        /* RESUMO VISUAL */
+        /* RESUMO VISUAL (bem curto) */
         .yvora-summary {{
             display: grid;
             grid-template-columns: 1fr;
@@ -314,12 +320,6 @@ def set_page_style():
             white-space: normal;
             word-break: normal;
             overflow-wrap: break-word;
-        }}
-        .yvora-clamp2 {{
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
         }}
         .yvora-clamp1 {{
             display: -webkit-box;
@@ -517,9 +517,6 @@ def _parse_profile_line(text: str) -> Dict[str, str]:
         m = re.search(rf"{label}\s*[:=\-]?\s*(\d)\s*/\s*5", t)
         if m:
             return int(m.group(1))
-        m = re.search(rf"{label}\s*[:=\-]\s*(\d)\b", t)
-        if m:
-            return int(m.group(1))
         return None
 
     ac = num("acidez")
@@ -546,17 +543,29 @@ def _parse_profile_line(text: str) -> Dict[str, str]:
 
 def _guess_strategy(text: str) -> str:
     t = norm_text(text).lower()
-    if any(k in t for k in ["estratégia: limpeza", "estrategia: limpeza", "limpeza", "corta a gordura", "limpa o paladar", "refresca"]):
+    if "limpeza" in t:
         return "Limpeza"
-    if any(k in t for k in ["ponte arom", "eco", "conversa", "dialog", "repete aromas"]):
+    if "ponte arom" in t or "ponte" in t:
         return "Ponte aromática"
-    if any(k in t for k in ["contraste", "oposição", "contraponto"]):
+    if "contraste" in t or "contraponto" in t:
         return "Contraste"
-    if any(k in t for k in ["amplifica", "realça", "aumenta", "eleva"]):
+    if "amplifica" in t or "realça" in t:
         return "Amplificação"
-    if any(k in t for k in ["equilíbrio", "equilibra", "balance"]):
+    if "equilíb" in t or "equilibr" in t:
         return "Equilíbrio"
     return "Estratégia"
+
+
+def _strategy_explain(strategy: str) -> str:
+    s = norm_text(strategy)
+    mapping = {
+        "Limpeza": "Como funciona: acidez limpa gordura e sal, deixando a próxima mordida mais leve.",
+        "Ponte aromática": "Como funciona: aromas do vinho repetem aromas do prato, dando sensação de encaixe.",
+        "Contraste": "Como funciona: o vinho faz contraste controlado (ex.: acidez vs gordura) sem conflito.",
+        "Amplificação": "Como funciona: o vinho realça o sabor dominante do prato e prolonga o final.",
+        "Equilíbrio": "Como funciona: nada sobra. O vinho acompanha a intensidade e mantém o conjunto harmônico.",
+    }
+    return mapping.get(s, "Como funciona: o vinho foi escolhido para reduzir risco sensorial e destacar o prato.")
 
 
 def first_sentence(text: str) -> str:
@@ -567,6 +576,85 @@ def first_sentence(text: str) -> str:
     if m and m[0]:
         return m[0]
     return s
+
+
+def _compact_one_line(text: str, hard_max: int = 140) -> str:
+    s = norm_text(text)
+    if not s:
+        return ""
+    s = re.sub(r"\s+", " ", s).strip()
+    if len(s) <= hard_max:
+        return s
+    # corta no último espaço antes do limite
+    cut = s.rfind(" ", 0, hard_max)
+    if cut <= 0:
+        return s[:hard_max].rstrip()
+    return s[:cut].rstrip()
+
+
+def _remove_scale_mentions(text: str) -> str:
+    s = norm_text(text)
+    if not s:
+        return ""
+    # remove "acidez 4/5", "corpo 3/5", "tanino 1/5" etc para não repetir com as barras
+    s = re.sub(r"\b(acidez|corpo|tanino)\s*\d\s*/\s*5\b", "", s, flags=re.IGNORECASE)
+    s = re.sub(r"\s{2,}", " ", s).strip()
+    return s
+
+
+def _extract_food_name_in_parentheses(text: str) -> str:
+    s = norm_text(text)
+    m = re.search(r"\(([^)]{2,60})\)", s)
+    if m:
+        return norm_text(m.group(1))
+    return ""
+
+
+def make_summary_carne(text: str) -> str:
+    s = _remove_scale_mentions(text)
+    dish = _extract_food_name_in_parentheses(s)
+    # tenta pegar 1 ideia central sem repetir muito
+    base = first_sentence(s)
+    base = _remove_scale_mentions(base)
+    base = re.sub(r"^a\s+carne\s*\([^)]+\)\s*", "", base, flags=re.IGNORECASE).strip()
+    if dish:
+        line = f"{dish}: {base}"
+    else:
+        line = base
+    # poda termos longos e deixa 1 linha objetiva
+    line = line.replace("vem ", "").replace("traz ", "").strip()
+    return _compact_one_line(line, 120)
+
+
+def make_summary_queijo(text: str) -> str:
+    s = _remove_scale_mentions(text)
+    dish = _extract_food_name_in_parentheses(s)
+    base = first_sentence(s)
+    base = _remove_scale_mentions(base)
+    base = re.sub(r"^o\s+queijo\s*\([^)]+\)\s*", "", base, flags=re.IGNORECASE).strip()
+    if dish:
+        line = f"{dish}: {base}"
+    else:
+        line = base
+    line = line.replace("traz ", "").strip()
+    return _compact_one_line(line, 120)
+
+
+def make_summary_combo(text: str, strategy: str) -> str:
+    s = _remove_scale_mentions(text)
+    expl = _strategy_explain(strategy)
+    # adiciona 1 frase curta de segurança sensorial, tentando puxar do texto completo
+    t = norm_text(text).lower()
+    risk = ""
+    if "não amarga" in t or "amargar" in t:
+        risk = "Risco baixo: tanino não amarga com sal e tostado."
+    elif "não apaga" in t or "não some" in t:
+        risk = "Risco baixo: o vinho não apaga o prato."
+    else:
+        risk = "Risco baixo: escolhido para não conflitar com queijo e carne."
+
+    line = f"{expl} {risk}"
+    return _compact_one_line(line, 160)
 
 
 def render_visual_profile(row: Dict):
@@ -653,38 +741,47 @@ def render_recos_block(title: str, p_subset: pd.DataFrame, wines_type_map: Dict[
         wine_type = wines_type_map.get(id_vinho, "")
 
         st.markdown(f"### {nome_vinho}")
+
         render_icon_row(row, wine_type)
 
         frase = norm_text(row.get("frase_mesa", ""))
         if frase:
-            st.markdown(f"<div class='yvora-quote'>💬 <span class='yvora-clamp2'>{frase}</span></div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='yvora-quote'>💬 <span class='yvora-clamp1'>{frase}</span></div>", unsafe_allow_html=True)
 
         render_visual_profile(row)
 
         por_vale = norm_text(row.get("por_que_vale", ""))
         sensacao = first_sentence(por_vale) if por_vale else first_sentence(row.get("por_que_combo", ""))
+        sensacao = _remove_scale_mentions(sensacao)
         if sensacao:
-            st.markdown(f"<div class='yvora-mini yvora-clamp1'>✨ {sensacao}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='yvora-mini yvora-clamp1'>✨ {_compact_one_line(sensacao, 120)}</div>", unsafe_allow_html=True)
 
-        pc_full = norm_text(row.get("por_que_carne", ""))
-        pq_full = norm_text(row.get("por_que_queijo", ""))
-        combo_full = norm_text(row.get("por_que_combo", ""))
+        # RESUMO REALMENTE CURTO (sem repetir o detalhado)
+        full_pc = norm_text(row.get("por_que_carne", ""))
+        full_pq = norm_text(row.get("por_que_queijo", ""))
+        full_combo = norm_text(row.get("por_que_combo", ""))
+
+        strategy = _guess_strategy(full_combo)
+
+        pc_short = make_summary_carne(full_pc)
+        pq_short = make_summary_queijo(full_pq)
+        combo_short = make_summary_combo(full_combo, strategy)
 
         st.markdown(
             f"""
             <div class="yvora-summary">
-              <div class="yvora-line">🥩 <span class="yvora-clamp2">{pc_full}</span></div>
-              <div class="yvora-line">🧀 <span class="yvora-clamp2">{pq_full}</span></div>
-              <div class="yvora-line">⚖️ <span class="yvora-clamp2">{combo_full}</span></div>
+              <div class="yvora-line">🥩 <span class="yvora-clamp1">{pc_short}</span></div>
+              <div class="yvora-line">🧀 <span class="yvora-clamp1">{pq_short}</span></div>
+              <div class="yvora-line">🧠 <span class="yvora-clamp1">{combo_short}</span></div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
+        # Ajuda didática (curta) explicando o que é estratégia
+        st.markdown(f"<div class='yvora-mini'>📌 {_strategy_explain(strategy)}</div>", unsafe_allow_html=True)
+
         with st.expander("Detalhes completos"):
-            full_pc = norm_text(row.get("por_que_carne", ""))
-            full_pq = norm_text(row.get("por_que_queijo", ""))
-            full_combo = norm_text(row.get("por_que_combo", ""))
             best = norm_text(row.get("a_melhor_para", ""))
 
             colA, colB = st.columns(2)
