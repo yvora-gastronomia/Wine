@@ -53,6 +53,16 @@ def norm_text(x) -> str:
     return s.strip()
 
 
+def clean_display_text(s: str) -> str:
+    """Limpa tokens feios para exibição (sem mexer em ids)."""
+    s = norm_text(s)
+    if not s:
+        return ""
+    s = s.replace("_", " ")
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
+
+
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_asset_bytes(local_path: Path, fallback_url: str = "") -> Optional[bytes]:
     try:
@@ -525,7 +535,7 @@ def _parse_profile_line(text: str) -> Dict[str, str]:
 
     m = re.search(r"(aromas?|perfil\s+arom[aá]tico)\s*[:=\-]\s*([^|\n]{3,90})", norm_text(text), flags=re.IGNORECASE)
     if m:
-        out["aromas"] = norm_text(m.group(2))
+        out["aromas"] = clean_display_text(m.group(2))
 
     return out
 
@@ -546,42 +556,32 @@ def _guess_strategy(text: str) -> str:
         return "Amplificação"
     if "equilíb" in t or "equilibr" in t:
         return "Equilíbrio"
-    return "Estratégia"
+    if "estrutura" in t:
+        return "Estrutura"
+    return ""
 
 
-def _strategy_simple(strategy: str) -> str:
-    s = norm_text(strategy)
+def _strategy_label(strategy: str) -> str:
     mapping = {
-        "Limpeza": "Limpa o paladar",
-        "Ponte aromática": "Repete aromas do prato",
-        "Contraste": "Contraste controlado",
-        "Amplificação": "Realça sabores",
-        "Equilíbrio": "Acompanha a intensidade",
+        "Limpeza": "limpa o paladar",
+        "Ponte aromática": "repete aromas do prato",
+        "Contraste": "equilibra por contraste",
+        "Amplificação": "realça sabores",
+        "Equilíbrio": "acompanha a intensidade",
+        "Estrutura": "segura gordura e proteína",
     }
-    return mapping.get(s, "Encaixe do conjunto")
+    return mapping.get(strategy, "")
 
 
-def _strategy_why(strategy: str) -> str:
-    s = norm_text(strategy)
-    mapping = {
-        "Limpeza": "A acidez ajuda a cortar gordura e sal, deixando a próxima mordida leve.",
-        "Ponte aromática": "Os aromas do vinho conversam com os aromas do prato e do queijo.",
-        "Contraste": "O vinho equilibra um lado do prato (gordura, sal, tostado) sem conflito.",
-        "Amplificação": "O vinho reforça o sabor principal e prolonga o final na boca.",
-        "Equilíbrio": "O vinho segue a intensidade do prato e mantém tudo no mesmo volume.",
-    }
-    return mapping.get(s, "O vinho foi escolhido para encaixar com prato e queijo sem conflito.")
-
-
-def _remove_scale_mentions(text: str) -> str:
-    s = norm_text(text)
-    s = re.sub(r"\b(acidez|corpo|tanino)\s*\d\s*/\s*5\b", "", s, flags=re.IGNORECASE)
-    s = re.sub(r"\s{2,}", " ", s).strip()
+def strip_strategy_prefix(text: str) -> str:
+    """Remove 'Estratégia: X.' do começo do texto."""
+    s = clean_display_text(text)
+    s = re.sub(r"^estrat[eé]gia\s*:\s*[^.]{2,30}\.\s*", "", s, flags=re.IGNORECASE).strip()
     return s
 
 
 def first_sentence(text: str) -> str:
-    s = norm_text(text)
+    s = clean_display_text(text)
     if not s:
         return ""
     m = re.split(r"(?<=[.!?])\s+", s)
@@ -589,8 +589,7 @@ def first_sentence(text: str) -> str:
 
 
 def _compact_one_line(text: str, hard_max: int = 140) -> str:
-    s = norm_text(text)
-    s = re.sub(r"\s+", " ", s).strip()
+    s = clean_display_text(text)
     if len(s) <= hard_max:
         return s
     cut = s.rfind(" ", 0, hard_max)
@@ -599,102 +598,168 @@ def _compact_one_line(text: str, hard_max: int = 140) -> str:
     return s[:cut].rstrip()
 
 
+GENERIC_BAD = [
+    "encaixar com prato",
+    "sem conflito",
+    "baixo risco sensorial",
+    "alternativa precisa",
+    "consistente",
+    "ótimo custo-benefício",
+    "leitura fácil",
+    "não brigar",
+    "evita conflito",
+]
+
+
+def looks_generic(s: str) -> bool:
+    t = clean_display_text(s).lower()
+    if not t:
+        return True
+    hit = sum(1 for k in GENERIC_BAD if k in t)
+    return hit >= 2 or len(t) < 35
+
+
 def _prefix_wine(nome_vinho: str, wine_type: str) -> str:
-    n = norm_text(nome_vinho)
-    t = norm_text(wine_type)
+    n = clean_display_text(nome_vinho)
+    t = clean_display_text(wine_type)
     if t:
         return f"{n} ({t})"
     return n
 
 
-def _context_decision_box(nome_vinho: str, wine_type: str, strategy: str, por_que_vale: str, por_que_combo: str) -> str:
-    vinho = _prefix_wine(nome_vinho, wine_type)
+def pick_mechanism(por_que_combo: str, profile: Dict[str, str]) -> str:
+    """Escolhe uma frase que explique o mecanismo de forma concreta."""
+    s = strip_strategy_prefix(por_que_combo)
 
-    # 1) vai bem porque (mecanismo 1 frase)
-    base_why = first_sentence(por_que_combo) or first_sentence(por_que_vale)
-    base_why = _remove_scale_mentions(base_why)
-    base_why = _compact_one_line(base_why, 130)
+    # tenta achar frase com palavras sensoriais úteis
+    candidates = re.split(r"(?<=[.!?])\s+", s)
+    good = []
+    for c in candidates:
+        cl = clean_display_text(c).lower()
+        if any(k in cl for k in ["acidez", "tanin", "corpo", "gordur", "sal", "tost", "cremos", "prote", "umami", "frita", "crocan"]):
+            good.append(clean_display_text(c))
+    if good:
+        return _compact_one_line(good[0], 140)
 
-    # 2) evita (risco) - tenta puxar do combo
-    t = norm_text(por_que_combo).lower()
-    avoid = ""
+    # fallback pelo perfil
+    ac = int(profile.get("acidez", "0") or "0")
+    co = int(profile.get("corpo", "0") or "0")
+    ta = int(profile.get("tanino", "0") or "0")
+
+    if ac >= 4:
+        return "A acidez alta limpa gordura e sal, deixando a boca leve entre as mordidas."
+    if co >= 4 and ta >= 3:
+        return "Corpo e tanino sustentam proteína e fritura, mantendo o sabor firme sem desmanchar."
+    if co >= 4:
+        return "O corpo acompanha a intensidade do prato e segura o final na boca."
+    if ta <= 1:
+        return "Tanino baixo evita amargor com sal e tostado, mantendo o conjunto suave."
+    return "O vinho foi escolhido para acompanhar a intensidade e manter o paladar equilibrado."
+
+
+def pick_avoid(por_que_combo: str, profile: Dict[str, str]) -> str:
+    """Risco evitado, sempre específico."""
+    t = clean_display_text(por_que_combo).lower()
     if "amarg" in t:
-        avoid = "Evita amargor com sal/tostado (tanino bem controlado)."
-    elif "apaga" in t or "some" in t:
-        avoid = "Evita o vinho sumir (corpo acompanha a intensidade)."
-    elif "conflit" in t:
-        avoid = "Evita conflito com o queijo (sal e gordura ficam sob controle)."
+        return "Evita amargor com sal e tostado porque o tanino está bem controlado."
+    if "apaga" in t or "some" in t:
+        return "Evita o vinho sumir porque o corpo acompanha a intensidade do prato."
+    if "pesad" in t or "engordur" in t:
+        return "Evita peso na boca porque a acidez renova o paladar."
+    if "conflit" in t:
+        return "Evita choque com o queijo porque sal e gordura ficam sob controle."
+    # fallback por perfil
+    ac = int(profile.get("acidez", "0") or "0")
+    co = int(profile.get("corpo", "0") or "0")
+    ta = int(profile.get("tanino", "0") or "0")
+    if ta >= 4:
+        return "Evita aspereza: o tanino é alto, então o prato precisa ter gordura/proteína para polir."
+    if ta <= 1:
+        return "Evita amargor com queijo salgado porque o tanino é baixo."
+    if co <= 2:
+        return "Evita excessos: corpo leve para não competir com o prato."
+    if ac >= 4:
+        return "Evita sensação enjoativa porque a acidez limpa gordura e sal."
+    return "Evita desequilíbrio: escolhido para não pesar nem desaparecer."
+
+
+def pick_feel(por_que_vale: str, por_que_combo: str, profile: Dict[str, str]) -> str:
+    """Sensação final na boca, concreta."""
+    s = first_sentence(por_que_vale) or first_sentence(por_que_combo)
+    s = strip_strategy_prefix(s)
+
+    if not looks_generic(s):
+        return _compact_one_line(s, 140)
+
+    # fallback baseado no perfil e aromas
+    aromas = clean_display_text(profile.get("aromas", ""))
+    final = clean_display_text(profile.get("final", ""))
+
+    ac = int(profile.get("acidez", "0") or "0")
+    co = int(profile.get("corpo", "0") or "0")
+    ta = int(profile.get("tanino", "0") or "0")
+
+    parts = []
+    if aromas:
+        parts.append(f"aromas de {aromas}")
+    parts.append(f"corpo {co}/5")
+    if ta == 0:
+        parts.append("sem tanino")
     else:
-        avoid = "Evita conflito: escolhido para não brigar com carne e queijo."
-    avoid = _compact_one_line(avoid, 120)
+        parts.append(f"tanino {ta}/5")
+    parts.append(f"acidez {ac}/5")
+    if final:
+        parts.append(f"final {final}")
 
-    # 3) você sente (sempre com sujeito "o vinho")
-    feel = first_sentence(por_que_vale) or first_sentence(por_que_combo)
-    feel = _remove_scale_mentions(feel)
-    feel = _compact_one_line(feel, 120)
-    if feel:
-        feel = f"Você sente: o vinho {vinho} {feel[0].lower() + feel[1:] if len(feel) > 1 else feel.lower()}"
-        if feel[-1] not in ".!?":
-            feel += "."
-
-    strat = _strategy_simple(strategy)
-    strat_why = _strategy_why(strategy)
-
-    return f"""
-    <div class="yvora-context">
-      <b>Resumo rápido (para decidir)</b><br>
-      <b>Vinho:</b> {vinho}<br>
-      <b>Vai bem porque:</b> {base_why}<br>
-      <b>Evita:</b> {avoid}<br>
-      <b>Como foi pensado:</b> {strat} - {strat_why}<br>
-      <b>{feel}</b>
-    </div>
-    """
+    return _compact_one_line("Na boca, entrega " + ", ".join(parts) + ".", 160)
 
 
-def _extract_action_from_text(text: str, fallback: str) -> str:
-    s = _remove_scale_mentions(text)
-    # remove abertura "A carne..." "O queijo..." etc e tenta focar no efeito
-    s = re.sub(r"^(a|o)\s+(carne|queijo)\s*\([^)]+\)\s*", "", s, flags=re.IGNORECASE).strip()
-    s = re.sub(r"^(a|o)\s+(carne|queijo)\s*", "", s, flags=re.IGNORECASE).strip()
+def build_carne_line(por_que_carne: str, profile: Dict[str, str]) -> str:
+    """Linha útil: efeito do vinho sobre a carne, não descrição do prato."""
+    s = clean_display_text(por_que_carne)
+    s = re.sub(r"^a\s+carne\s*\([^)]+\)\s*", "", s, flags=re.IGNORECASE).strip()
     s = first_sentence(s)
-    s = _compact_one_line(s, 125)
-    return s if s else fallback
+
+    if not looks_generic(s) and any(k in s.lower() for k in ["acidez", "tanin", "corpo", "gordur", "prote", "tost", "frita", "suco", "umami"]):
+        return _compact_one_line(s, 140)
+
+    # fallback por perfil
+    ac = int(profile.get("acidez", "0") or "0")
+    co = int(profile.get("corpo", "0") or "0")
+    ta = int(profile.get("tanino", "0") or "0")
+
+    if ta >= 3:
+        return "O tanino se liga à proteína e deixa a mordida mais macia, sem ficar seca."
+    if ac >= 4:
+        return "A acidez limpa a gordura da carne e prepara a próxima mordida."
+    if co >= 4:
+        return "O corpo sustenta a intensidade da carne e mantém o sabor firme."
+    return "Acompanha a carne sem pesar e mantém o paladar organizado."
 
 
-def _line_carne(nome_vinho: str, wine_type: str, full_pc: str) -> str:
-    vinho = _prefix_wine(nome_vinho, wine_type)
-    action = _extract_action_from_text(
-        full_pc,
-        "acompanha a textura da carne sem pesar e mantém a mordida clara.",
-    )
-    return f"No prato, o vinho {vinho} {action}"
+def build_queijo_line(por_que_queijo: str, profile: Dict[str, str]) -> str:
+    """Linha útil: efeito do vinho sobre o queijo."""
+    s = clean_display_text(por_que_queijo)
+    s = re.sub(r"^o\s+queijo\s*\([^)]+\)\s*", "", s, flags=re.IGNORECASE).strip()
+    s = first_sentence(s)
+
+    if not looks_generic(s) and any(k in s.lower() for k in ["sal", "cremos", "gordur", "acidez", "tanin", "láct", "matur"]):
+        return _compact_one_line(s, 140)
+
+    ac = int(profile.get("acidez", "0") or "0")
+    ta = int(profile.get("tanino", "0") or "0")
+
+    if ac >= 4:
+        return "A acidez corta a cremosidade e limpa o sal do queijo."
+    if ta <= 1:
+        return "Tanino baixo evita amargor com queijo salgado e deixa o final mais limpo."
+    return "Equilibra sal e gordura do queijo, sem deixar a boca pesada."
 
 
-def _line_queijo(nome_vinho: str, wine_type: str, full_pq: str) -> str:
-    vinho = _prefix_wine(nome_vinho, wine_type)
-    action = _extract_action_from_text(
-        full_pq,
-        "equilibra o sal e a cremosidade do queijo, deixando a boca mais limpa.",
-    )
-    return f"No queijo, o vinho {vinho} {action}"
-
-
-def _line_combo(nome_vinho: str, wine_type: str, strategy: str, full_combo: str) -> str:
-    vinho = _prefix_wine(nome_vinho, wine_type)
-    why = _strategy_why(strategy)
-    # tenta puxar 1 risco do texto completo
-    t = norm_text(full_combo).lower()
-    risk = ""
-    if "amarg" in t:
-        risk = "Por isso não amarga com sal/tostado."
-    elif "apaga" in t or "some" in t:
-        risk = "Por isso não some diante do prato."
-    elif "conflit" in t:
-        risk = "Por isso não conflita com o queijo."
-    else:
-        risk = "Por isso mantém baixo risco sensorial."
-    return f"No conjunto, o vinho {vinho} funciona assim: {why} {risk}"
+def build_combo_line(strategy: str, por_que_combo: str, profile: Dict[str, str]) -> str:
+    label = _strategy_label(strategy) or "encaixa o conjunto"
+    mech = pick_mechanism(por_que_combo, profile)
+    return _compact_one_line(f"Como funciona: {label}. {mech}", 170)
 
 
 def render_visual_profile(row: Dict):
@@ -741,15 +806,12 @@ def render_visual_profile(row: Dict):
 
 def render_icon_row(row: Dict, wine_type: str):
     strategy = _guess_strategy(row.get("por_que_combo", ""))
-    rot = norm_text(row.get("rotulo_valor", "$")) or "$"
+    rot = clean_display_text(row.get("rotulo_valor", "$")) or "$"
 
-    chips = []
-    chips.append(f"<span class='yvora-chip'>🏷️ {rot}</span>")
-
+    chips = [f"<span class='yvora-chip'>🏷️ {rot}</span>"]
     if wine_type:
-        chips.append(f"<span class='yvora-chip'>🍷 {wine_type}</span>")
-
-    if strategy and strategy != "Estratégia":
+        chips.append(f"<span class='yvora-chip'>🍷 {clean_display_text(wine_type)}</span>")
+    if strategy:
         icon = "🧭"
         if strategy == "Limpeza":
             icon = "💧"
@@ -761,9 +823,36 @@ def render_icon_row(row: Dict, wine_type: str):
             icon = "🔥"
         elif strategy == "Equilíbrio":
             icon = "⚖️"
-        chips.append(f"<span class='yvora-chip'>{icon} {_strategy_simple(strategy)}</span>")
+        elif strategy == "Estrutura":
+            icon = "🧱"
+        chips.append(f"<span class='yvora-chip'>{icon} {_strategy_label(strategy) or strategy}</span>")
 
     st.markdown("".join(chips), unsafe_allow_html=True)
+
+
+def context_box(nome_vinho: str, wine_type: str, strategy: str, profile: Dict[str, str], por_que_combo: str, por_que_vale: str) -> str:
+    vinho = _prefix_wine(nome_vinho, wine_type)
+
+    because = pick_mechanism(por_que_combo, profile)
+    avoid = pick_avoid(por_que_combo, profile)
+    feel = pick_feel(por_que_vale, por_que_combo, profile)
+
+    strat_label = _strategy_label(strategy)
+    if strat_label:
+        strat_text = f"Como foi pensado: {strat_label}."
+    else:
+        strat_text = "Como foi pensado: equilíbrio do conjunto."
+
+    return f"""
+    <div class="yvora-context">
+      <b>Resumo rápido</b><br>
+      <b>Vinho:</b> {vinho}<br>
+      <b>Por que combina:</b> {because}<br>
+      <b>O que evita:</b> {avoid}<br>
+      <b>{strat_text}</b><br>
+      <b>Na boca:</b> {feel}
+    </div>
+    """
 
 
 def render_recos_block(title: str, p_subset: pd.DataFrame, wines_type_map: Dict[str, str]):
@@ -772,74 +861,74 @@ def render_recos_block(title: str, p_subset: pd.DataFrame, wines_type_map: Dict[
 
     order = {"$$$": 0, "$$": 1, "$": 2}
     p_subset = p_subset.copy()
-    p_subset["ord"] = p_subset["rotulo_valor"].apply(lambda x: order.get(norm_text(x), 9))
+    p_subset["ord"] = p_subset["rotulo_valor"].apply(lambda x: order.get(clean_display_text(x), 9))
     p_subset = p_subset.sort_values(["ord", "nome_vinho"], ascending=True).head(3)
 
     for _, row in p_subset.iterrows():
-        nome_vinho = norm_text(row.get("nome_vinho", ""))
-        id_vinho = norm_text(row.get("id_vinho", ""))
-        wine_type = wines_type_map.get(id_vinho, "")
+        nome_vinho = clean_display_text(row.get("nome_vinho", ""))
+        id_vinho = clean_display_text(row.get("id_vinho", ""))
+        wine_type = clean_display_text(wines_type_map.get(id_vinho, ""))
 
         st.markdown(f"### {nome_vinho}")
         render_icon_row(row, wine_type)
 
-        frase = norm_text(row.get("frase_mesa", ""))
+        frase = clean_display_text(row.get("frase_mesa", ""))
         if frase:
             vinho = _prefix_wine(nome_vinho, wine_type)
-            mesa = _compact_one_line(frase, 130)
+            mesa = _compact_one_line(frase, 140)
             st.markdown(
                 f"<div class='yvora-quote'>💬 <b>{vinho}</b>: <span class='yvora-clamp1'>{mesa}</span></div>",
                 unsafe_allow_html=True,
             )
 
+        # perfil visual
         render_visual_profile(row)
+        profile = _parse_profile_line(row.get("a_melhor_para", ""))
 
-        full_pc = norm_text(row.get("por_que_carne", ""))
-        full_pq = norm_text(row.get("por_que_queijo", ""))
-        full_combo = norm_text(row.get("por_que_combo", ""))
-        por_vale = norm_text(row.get("por_que_vale", ""))
+        # textos completos
+        full_pc = clean_display_text(row.get("por_que_carne", ""))
+        full_pq = clean_display_text(row.get("por_que_queijo", ""))
+        full_combo = clean_display_text(row.get("por_que_combo", ""))
+        por_vale = clean_display_text(row.get("por_que_vale", ""))
 
         strategy = _guess_strategy(full_combo)
 
-        # bloco decisório útil (sem redundância)
-        st.markdown(
-            _context_decision_box(nome_vinho, wine_type, strategy, por_vale, full_combo),
-            unsafe_allow_html=True,
-        )
+        # bloco que realmente orienta decisão
+        st.markdown(context_box(nome_vinho, wine_type, strategy, profile, full_combo, por_vale), unsafe_allow_html=True)
 
-        # 3 linhas que ajudam decisão (efeito do vinho, não descrição do prato)
-        line1 = _compact_one_line(_line_carne(nome_vinho, wine_type, full_pc), 160)
-        line2 = _compact_one_line(_line_queijo(nome_vinho, wine_type, full_pq), 160)
-        line3 = _compact_one_line(_line_combo(nome_vinho, wine_type, strategy, full_combo), 180)
+        # 3 linhas úteis (efeito do vinho)
+        l1 = build_carne_line(full_pc, profile)
+        l2 = build_queijo_line(full_pq, profile)
+        l3 = build_combo_line(strategy, full_combo, profile)
 
         st.markdown(
             f"""
             <div class="yvora-summary">
-              <div class="yvora-line">🥩 <span class="yvora-clamp1">{line1}</span></div>
-              <div class="yvora-line">🧀 <span class="yvora-clamp1">{line2}</span></div>
-              <div class="yvora-line">🧠 <span class="yvora-clamp1">{line3}</span></div>
+              <div class="yvora-line">🥩 <span class="yvora-clamp1">{l1}</span></div>
+              <div class="yvora-line">🧀 <span class="yvora-clamp1">{l2}</span></div>
+              <div class="yvora-line">🧠 <span class="yvora-clamp1">{l3}</span></div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
         with st.expander("Detalhes completos"):
-            best = norm_text(row.get("a_melhor_para", ""))
+            best = clean_display_text(row.get("a_melhor_para", ""))
 
             colA, colB = st.columns(2)
             with colA:
                 if full_pc:
-                    st.markdown("**🥩 O que o vinho faz com a carne (explicado)**")
+                    st.markdown("**🥩 Carne (detalhado)**")
                     st.write(full_pc)
                 if full_pq:
-                    st.markdown("**🧀 O que o vinho faz com o queijo (explicado)**")
+                    st.markdown("**🧀 Queijo (detalhado)**")
                     st.write(full_pq)
             with colB:
                 if full_combo:
-                    st.markdown("**⚖️ Por que funciona no conjunto (explicado)**")
+                    st.markdown("**⚖️ Conjunto (detalhado)**")
                     st.write(full_combo)
                 if best:
-                    st.markdown("**⭐ Perfil do vinho (o que esperar na taça)**")
+                    st.markdown("**⭐ Perfil do vinho (detalhado)**")
                     st.write(best)
 
         st.divider()
