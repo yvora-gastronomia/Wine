@@ -249,18 +249,22 @@ def set_page_style():
             padding: 10px 12px;
             margin: 10px 0 8px 0;
             color: {BRAND_BLUE};
-            font-weight: 600;
+            font-weight: 650;
         }}
         .yvora-mini {{
             color: {BRAND_MUTED};
             font-size: 0.92rem;
             margin-top: 2px;
         }}
-        .yvora-kicker {{
+        .yvora-context {{
+            background: rgba(255,255,255,0.55);
+            border: 1px solid rgba(14,42,71,0.10);
+            border-radius: 14px;
+            padding: 12px 12px;
+            margin: 10px 0 10px 0;
             color: {BRAND_BLUE};
-            font-size: 0.92rem;
-            margin-top: 8px;
-            font-weight: 650;
+            font-size: 0.94rem;
+            line-height: 1.35rem;
         }}
         .yvora-meters {{
             display: grid;
@@ -297,7 +301,7 @@ def set_page_style():
             width: 0%;
         }}
 
-        /* RESUMO VISUAL (bem curto) */
+        /* RESUMO VISUAL */
         .yvora-summary {{
             display: grid;
             grid-template-columns: 1fr;
@@ -559,13 +563,13 @@ def _guess_strategy(text: str) -> str:
 def _strategy_explain(strategy: str) -> str:
     s = norm_text(strategy)
     mapping = {
-        "Limpeza": "Como funciona: acidez limpa gordura e sal, deixando a próxima mordida mais leve.",
-        "Ponte aromática": "Como funciona: aromas do vinho repetem aromas do prato, dando sensação de encaixe.",
-        "Contraste": "Como funciona: o vinho faz contraste controlado (ex.: acidez vs gordura) sem conflito.",
-        "Amplificação": "Como funciona: o vinho realça o sabor dominante do prato e prolonga o final.",
-        "Equilíbrio": "Como funciona: nada sobra. O vinho acompanha a intensidade e mantém o conjunto harmônico.",
+        "Limpeza": "Ideia da harmonização: o vinho limpa gordura e sal com a acidez, deixando a próxima mordida mais leve.",
+        "Ponte aromática": "Ideia da harmonização: aromas do vinho repetem aromas do prato, dando sensação de encaixe.",
+        "Contraste": "Ideia da harmonização: o vinho cria contraste controlado (ex.: acidez vs gordura) sem conflito.",
+        "Amplificação": "Ideia da harmonização: o vinho realça o sabor dominante e prolonga o final do prato.",
+        "Equilíbrio": "Ideia da harmonização: o vinho acompanha a intensidade e mantém o conjunto harmônico.",
     }
-    return mapping.get(s, "Como funciona: o vinho foi escolhido para reduzir risco sensorial e destacar o prato.")
+    return mapping.get(s, "Ideia da harmonização: o vinho foi escolhido para reduzir risco sensorial e destacar o prato.")
 
 
 def first_sentence(text: str) -> str:
@@ -578,14 +582,13 @@ def first_sentence(text: str) -> str:
     return s
 
 
-def _compact_one_line(text: str, hard_max: int = 140) -> str:
+def _compact_one_line(text: str, hard_max: int = 150) -> str:
     s = norm_text(text)
     if not s:
         return ""
     s = re.sub(r"\s+", " ", s).strip()
     if len(s) <= hard_max:
         return s
-    # corta no último espaço antes do limite
     cut = s.rfind(" ", 0, hard_max)
     if cut <= 0:
         return s[:hard_max].rstrip()
@@ -596,7 +599,6 @@ def _remove_scale_mentions(text: str) -> str:
     s = norm_text(text)
     if not s:
         return ""
-    # remove "acidez 4/5", "corpo 3/5", "tanino 1/5" etc para não repetir com as barras
     s = re.sub(r"\b(acidez|corpo|tanino)\s*\d\s*/\s*5\b", "", s, flags=re.IGNORECASE)
     s = re.sub(r"\s{2,}", " ", s).strip()
     return s
@@ -610,51 +612,73 @@ def _extract_food_name_in_parentheses(text: str) -> str:
     return ""
 
 
-def make_summary_carne(text: str) -> str:
-    s = _remove_scale_mentions(text)
-    dish = _extract_food_name_in_parentheses(s)
-    # tenta pegar 1 ideia central sem repetir muito
-    base = first_sentence(s)
-    base = _remove_scale_mentions(base)
+def _prefix_wine(nome_vinho: str, wine_type: str) -> str:
+    n = norm_text(nome_vinho)
+    t = norm_text(wine_type)
+    if t:
+        return f"O vinho {n} ({t})"
+    return f"O vinho {n}"
+
+
+def _ensure_sentence(s: str) -> str:
+    s = norm_text(s)
+    if not s:
+        return ""
+    if s[-1] not in ".!?":
+        s += "."
+    return s
+
+
+def make_context_sentence(nome_vinho: str, wine_type: str, sensacao: str) -> str:
+    pre = _prefix_wine(nome_vinho, wine_type)
+    s = _remove_scale_mentions(sensacao)
+    s = _compact_one_line(s, 130)
+    if not s:
+        return ""
+    s = s[0].lower() + s[1:] if len(s) > 1 else s.lower()
+    return _ensure_sentence(f"{pre} {s}")
+
+
+def make_summary_carne(nome_vinho: str, wine_type: str, text: str) -> str:
+    pre = _prefix_wine(nome_vinho, wine_type)
+    dish = _extract_food_name_in_parentheses(text)
+    base = _remove_scale_mentions(first_sentence(text))
     base = re.sub(r"^a\s+carne\s*\([^)]+\)\s*", "", base, flags=re.IGNORECASE).strip()
     if dish:
-        line = f"{dish}: {base}"
+        core = f"na carne ({dish}), {base}"
     else:
-        line = base
-    # poda termos longos e deixa 1 linha objetiva
-    line = line.replace("vem ", "").replace("traz ", "").strip()
-    return _compact_one_line(line, 120)
+        core = f"na carne, {base}"
+    core = core.replace("vem ", "").replace("traz ", "").strip()
+    return _compact_one_line(_ensure_sentence(f"{pre} {core}"), 150)
 
 
-def make_summary_queijo(text: str) -> str:
-    s = _remove_scale_mentions(text)
-    dish = _extract_food_name_in_parentheses(s)
-    base = first_sentence(s)
-    base = _remove_scale_mentions(base)
+def make_summary_queijo(nome_vinho: str, wine_type: str, text: str) -> str:
+    pre = _prefix_wine(nome_vinho, wine_type)
+    dish = _extract_food_name_in_parentheses(text)
+    base = _remove_scale_mentions(first_sentence(text))
     base = re.sub(r"^o\s+queijo\s*\([^)]+\)\s*", "", base, flags=re.IGNORECASE).strip()
     if dish:
-        line = f"{dish}: {base}"
+        core = f"no queijo ({dish}), {base}"
     else:
-        line = base
-    line = line.replace("traz ", "").strip()
-    return _compact_one_line(line, 120)
+        core = f"no queijo, {base}"
+    core = core.replace("traz ", "").strip()
+    return _compact_one_line(_ensure_sentence(f"{pre} {core}"), 150)
 
 
-def make_summary_combo(text: str, strategy: str) -> str:
-    s = _remove_scale_mentions(text)
+def make_summary_combo(nome_vinho: str, wine_type: str, strategy: str, full_combo_text: str) -> str:
+    pre = _prefix_wine(nome_vinho, wine_type)
     expl = _strategy_explain(strategy)
-    # adiciona 1 frase curta de segurança sensorial, tentando puxar do texto completo
-    t = norm_text(text).lower()
+    t = norm_text(full_combo_text).lower()
+
     risk = ""
     if "não amarga" in t or "amargar" in t:
         risk = "Risco baixo: tanino não amarga com sal e tostado."
     elif "não apaga" in t or "não some" in t:
-        risk = "Risco baixo: o vinho não apaga o prato."
+        risk = "Risco baixo: não apaga o prato."
     else:
-        risk = "Risco baixo: escolhido para não conflitar com queijo e carne."
+        risk = "Risco baixo: não conflita com queijo e carne."
 
-    line = f"{expl} {risk}"
-    return _compact_one_line(line, 160)
+    return _compact_one_line(_ensure_sentence(f"{pre}. {expl} {risk}"), 185)
 
 
 def render_visual_profile(row: Dict):
@@ -726,6 +750,22 @@ def render_icon_row(row: Dict, wine_type: str):
     st.markdown("".join(chips), unsafe_allow_html=True)
 
 
+def _context_box(nome_vinho: str, wine_type: str, strategy: str, sensacao: str) -> str:
+    pre = _prefix_wine(nome_vinho, wine_type)
+    expl = _strategy_explain(strategy)
+    ss = make_context_sentence(nome_vinho, wine_type, sensacao)
+    if not ss:
+        ss = _ensure_sentence(f"{pre} foi selecionado para encaixar com a intensidade do prato e do queijo")
+    return f"""
+    <div class="yvora-context">
+      <b>Como ler esta sugestão</b><br>
+      1) Você está avaliando <b>{pre}</b> com estes pratos.<br>
+      2) <b>Ideia da harmonização:</b> {expl}<br>
+      3) <b>O que você sente:</b> {ss}
+    </div>
+    """
+
+
 def render_recos_block(title: str, p_subset: pd.DataFrame, wines_type_map: Dict[str, str]):
     st.markdown("<div class='yvora-card'>", unsafe_allow_html=True)
     st.markdown(f"#### {title}")
@@ -741,31 +781,40 @@ def render_recos_block(title: str, p_subset: pd.DataFrame, wines_type_map: Dict[
         wine_type = wines_type_map.get(id_vinho, "")
 
         st.markdown(f"### {nome_vinho}")
-
         render_icon_row(row, wine_type)
 
         frase = norm_text(row.get("frase_mesa", ""))
         if frase:
-            st.markdown(f"<div class='yvora-quote'>💬 <span class='yvora-clamp1'>{frase}</span></div>", unsafe_allow_html=True)
+            # Frase de mesa: agora auto-explicativa e contextualizada com o vinho
+            pre = _prefix_wine(nome_vinho, wine_type)
+            mesa = _compact_one_line(frase, 130)
+            if mesa:
+                st.markdown(
+                    f"<div class='yvora-quote'>💬 {pre}: <span class='yvora-clamp1'>{mesa}</span></div>",
+                    unsafe_allow_html=True,
+                )
 
         render_visual_profile(row)
 
         por_vale = norm_text(row.get("por_que_vale", ""))
-        sensacao = first_sentence(por_vale) if por_vale else first_sentence(row.get("por_que_combo", ""))
-        sensacao = _remove_scale_mentions(sensacao)
-        if sensacao:
-            st.markdown(f"<div class='yvora-mini yvora-clamp1'>✨ {_compact_one_line(sensacao, 120)}</div>", unsafe_allow_html=True)
+        sensacao_raw = first_sentence(por_vale) if por_vale else first_sentence(row.get("por_que_combo", ""))
+        sensacao_raw = _remove_scale_mentions(sensacao_raw)
+        if sensacao_raw:
+            st.markdown(f"<div class='yvora-mini yvora-clamp1'>✨ {make_context_sentence(nome_vinho, wine_type, sensacao_raw)}</div>", unsafe_allow_html=True)
 
-        # RESUMO REALMENTE CURTO (sem repetir o detalhado)
         full_pc = norm_text(row.get("por_que_carne", ""))
         full_pq = norm_text(row.get("por_que_queijo", ""))
         full_combo = norm_text(row.get("por_que_combo", ""))
 
         strategy = _guess_strategy(full_combo)
 
-        pc_short = make_summary_carne(full_pc)
-        pq_short = make_summary_queijo(full_pq)
-        combo_short = make_summary_combo(full_combo, strategy)
+        # Caixa de contexto para quem abriu o app e precisa entender tudo sem conhecer termos
+        st.markdown(_context_box(nome_vinho, wine_type, strategy, sensacao_raw), unsafe_allow_html=True)
+
+        # Resumo de decisão: 3 linhas curtas, sempre mencionando o vinho e o efeito
+        pc_short = make_summary_carne(nome_vinho, wine_type, full_pc)
+        pq_short = make_summary_queijo(nome_vinho, wine_type, full_pq)
+        combo_short = make_summary_combo(nome_vinho, wine_type, strategy, full_combo)
 
         st.markdown(
             f"""
@@ -778,27 +827,24 @@ def render_recos_block(title: str, p_subset: pd.DataFrame, wines_type_map: Dict[
             unsafe_allow_html=True,
         )
 
-        # Ajuda didática (curta) explicando o que é estratégia
-        st.markdown(f"<div class='yvora-mini'>📌 {_strategy_explain(strategy)}</div>", unsafe_allow_html=True)
-
         with st.expander("Detalhes completos"):
             best = norm_text(row.get("a_melhor_para", ""))
 
             colA, colB = st.columns(2)
             with colA:
                 if full_pc:
-                    st.markdown("**🥩 Carne**")
-                    st.write(full_pc)
+                    st.markdown("**🥩 O que o vinho faz com a carne**")
+                    st.write(_ensure_sentence(f"{_prefix_wine(nome_vinho, wine_type)} com a carne: {full_pc}"))
                 if full_pq:
-                    st.markdown("**🧀 Queijo**")
-                    st.write(full_pq)
+                    st.markdown("**🧀 O que o vinho faz com o queijo**")
+                    st.write(_ensure_sentence(f"{_prefix_wine(nome_vinho, wine_type)} com o queijo: {full_pq}"))
             with colB:
                 if full_combo:
-                    st.markdown("**⚖️ Conjunto**")
-                    st.write(full_combo)
+                    st.markdown("**⚖️ Por que funciona no conjunto**")
+                    st.write(_ensure_sentence(f"Nesta combinação, {_prefix_wine(nome_vinho, wine_type)} funciona assim: {full_combo}"))
                 if best:
-                    st.markdown("**⭐ Perfil do vinho**")
-                    st.write(best)
+                    st.markdown("**⭐ Perfil do vinho (o que esperar na taça)**")
+                    st.write(_ensure_sentence(f"Na taça, {_prefix_wine(nome_vinho, wine_type)} é descrito assim: {best}"))
 
         st.divider()
 
