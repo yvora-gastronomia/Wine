@@ -291,7 +291,7 @@ def set_page_style():
             width: 0%;
         }}
 
-        /* RESUMO VISUAL: evita palavras "interrompidas" */
+        /* RESUMO VISUAL */
         .yvora-summary {{
             display: grid;
             grid-template-columns: 1fr;
@@ -313,7 +313,19 @@ def set_page_style():
         .yvora-line span {{
             white-space: normal;
             word-break: normal;
-            overflow-wrap: anywhere;
+            overflow-wrap: break-word;
+        }}
+        .yvora-clamp2 {{
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }}
+        .yvora-clamp1 {{
+            display: -webkit-box;
+            -webkit-line-clamp: 1;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
         }}
         </style>
         """,
@@ -423,7 +435,6 @@ def _normalize_wine_type(raw: str) -> str:
     t = norm_text(raw).lower()
     if not t:
         return ""
-    # heurística simples
     if "espum" in t or "spark" in t or "champ" in t:
         return "Espumante"
     if "rose" in t or "rosé" in t:
@@ -548,29 +559,10 @@ def _guess_strategy(text: str) -> str:
     return "Estratégia"
 
 
-def truncate_words(text: str, max_len: int) -> str:
-    s = norm_text(text)
-    if len(s) <= max_len:
-        return s
-    parts = s.split()
-    out = []
-    total = 0
-    for w in parts:
-        add = len(w) + (1 if out else 0)
-        if total + add > max_len - 1:
-            break
-        out.append(w)
-        total += add
-    if not out:
-        return s[: max_len - 1].rstrip() + "…"
-    return " ".join(out).rstrip() + "…"
-
-
 def first_sentence(text: str) -> str:
     s = norm_text(text)
     if not s:
         return ""
-    # pega até o primeiro ponto final "forte"
     m = re.split(r"(?<=[.!?])\s+", s)
     if m and m[0]:
         return m[0]
@@ -661,34 +653,29 @@ def render_recos_block(title: str, p_subset: pd.DataFrame, wines_type_map: Dict[
         wine_type = wines_type_map.get(id_vinho, "")
 
         st.markdown(f"### {nome_vinho}")
-
         render_icon_row(row, wine_type)
 
-        # Frase de mesa (curta)
         frase = norm_text(row.get("frase_mesa", ""))
         if frase:
-            st.markdown(f"<div class='yvora-quote'>💬 {truncate_words(frase, 150)}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='yvora-quote'>💬 <span class='yvora-clamp2'>{frase}</span></div>", unsafe_allow_html=True)
 
-        # Escalas (sempre que a_melhor_para estiver no padrão)
         render_visual_profile(row)
 
-        # Sensação final: curta, objetiva e sem cortar palavra
         por_vale = norm_text(row.get("por_que_vale", ""))
         sensacao = first_sentence(por_vale) if por_vale else first_sentence(row.get("por_que_combo", ""))
         if sensacao:
-            st.caption("✨ " + truncate_words(sensacao, 140))
+            st.markdown(f"<div class='yvora-mini yvora-clamp1'>✨ {sensacao}</div>", unsafe_allow_html=True)
 
-        # Tríade resumida: 3 linhas curtas (sem quebrar palavra)
-        pc_short = truncate_words(row.get("por_que_carne", ""), 110)
-        pq_short = truncate_words(row.get("por_que_queijo", ""), 110)
-        combo_short = truncate_words(row.get("por_que_combo", ""), 140)
+        pc_full = norm_text(row.get("por_que_carne", ""))
+        pq_full = norm_text(row.get("por_que_queijo", ""))
+        combo_full = norm_text(row.get("por_que_combo", ""))
 
         st.markdown(
             f"""
             <div class="yvora-summary">
-              <div class="yvora-line">🥩 <span>{pc_short}</span></div>
-              <div class="yvora-line">🧀 <span>{pq_short}</span></div>
-              <div class="yvora-line">⚖️ <span>{combo_short}</span></div>
+              <div class="yvora-line">🥩 <span class="yvora-clamp2">{pc_full}</span></div>
+              <div class="yvora-line">🧀 <span class="yvora-clamp2">{pq_full}</span></div>
+              <div class="yvora-line">⚖️ <span class="yvora-clamp2">{combo_full}</span></div>
             </div>
             """,
             unsafe_allow_html=True,
