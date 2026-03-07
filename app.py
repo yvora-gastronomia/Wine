@@ -16,6 +16,7 @@ BRAND_BLUE = "#0E2A47"
 BRAND_MUTED = "#6B7785"
 BRAND_CARD = "#F5EFE7"
 BRAND_WARN = "#F3D6CF"
+BRAND_SOFT = "#F8F4EE"
 
 BASE_DIR = Path(__file__).resolve().parent
 POSSIBLE_LOGOS = [
@@ -54,7 +55,6 @@ def norm_text(x) -> str:
 
 
 def clean_display_text(s: str) -> str:
-    """Limpa tokens feios para exibição (sem mexer em ids)."""
     s = norm_text(s)
     if not s:
         return ""
@@ -226,11 +226,12 @@ def set_page_style():
             margin-top: -8px;
         }}
         .yvora-card {{
-            background: {BRAND_CARD};
-            border-radius: 16px;
-            padding: 16px 16px;
+            background: linear-gradient(180deg, {BRAND_CARD} 0%, {BRAND_SOFT} 100%);
+            border-radius: 18px;
+            padding: 18px 18px;
             border: 1px solid rgba(14,42,71,0.10);
-            margin-bottom: 14px;
+            margin-bottom: 16px;
+            box-shadow: 0 6px 20px rgba(14,42,71,0.04);
         }}
         .yvora-warn {{
             background: {BRAND_WARN};
@@ -242,102 +243,99 @@ def set_page_style():
             display: inline-flex;
             align-items: center;
             gap: 6px;
-            padding: 4px 10px;
+            padding: 5px 11px;
             border-radius: 999px;
-            border: 1px solid rgba(14,42,71,0.16);
+            border: 1px solid rgba(14,42,71,0.14);
             color: {BRAND_BLUE};
             font-size: 0.82rem;
             margin-right: 6px;
             margin-top: 6px;
-            background: rgba(255,255,255,0.55);
+            background: rgba(255,255,255,0.75);
             white-space: nowrap;
+            box-shadow: 0 2px 8px rgba(14,42,71,0.04);
         }}
         .yvora-quote {{
-            background: rgba(255,255,255,0.65);
-            border: 1px solid rgba(14,42,71,0.12);
-            border-radius: 12px;
-            padding: 10px 12px;
-            margin: 10px 0 8px 0;
+            background: rgba(255,255,255,0.82);
+            border: 1px solid rgba(14,42,71,0.10);
+            border-radius: 14px;
+            padding: 12px 14px;
+            margin: 12px 0 10px 0;
             color: {BRAND_BLUE};
             font-weight: 650;
         }}
         .yvora-mini {{
             color: {BRAND_MUTED};
-            font-size: 0.92rem;
-            margin-top: 2px;
+            font-size: 0.93rem;
+            margin-top: 4px;
         }}
         .yvora-context {{
-            background: rgba(255,255,255,0.55);
-            border: 1px solid rgba(14,42,71,0.10);
-            border-radius: 14px;
-            padding: 12px 12px;
-            margin: 10px 0 10px 0;
+            background: rgba(255,255,255,0.72);
+            border: 1px solid rgba(14,42,71,0.08);
+            border-radius: 16px;
+            padding: 14px 14px;
+            margin: 12px 0 12px 0;
             color: {BRAND_BLUE};
-            font-size: 0.94rem;
-            line-height: 1.35rem;
+            font-size: 0.95rem;
+            line-height: 1.42rem;
         }}
         .yvora-meters {{
             display: grid;
             grid-template-columns: 1fr 1fr 1fr;
-            gap: 8px 12px;
-            margin-top: 10px;
+            gap: 10px 12px;
+            margin-top: 12px;
         }}
         .yvora-meter {{
-            background: rgba(255,255,255,0.55);
-            border: 1px solid rgba(14,42,71,0.10);
-            border-radius: 12px;
-            padding: 8px 10px;
+            background: rgba(255,255,255,0.76);
+            border: 1px solid rgba(14,42,71,0.08);
+            border-radius: 14px;
+            padding: 9px 11px;
         }}
         .yvora-meter-top {{
             display: flex;
             justify-content: space-between;
             align-items: center;
             gap: 10px;
-            font-size: 0.88rem;
+            font-size: 0.89rem;
             color: {BRAND_BLUE};
-            margin-bottom: 6px;
+            margin-bottom: 7px;
+            font-weight: 500;
         }}
         .yvora-bar {{
             width: 100%;
-            height: 8px;
+            height: 9px;
             border-radius: 99px;
-            background: rgba(14,42,71,0.12);
+            background: rgba(14,42,71,0.10);
             overflow: hidden;
         }}
         .yvora-bar-fill {{
-            height: 8px;
+            height: 9px;
             border-radius: 99px;
-            background: rgba(14,42,71,0.55);
+            background: linear-gradient(90deg, rgba(14,42,71,0.55) 0%, rgba(14,42,71,0.78) 100%);
             width: 0%;
         }}
         .yvora-summary {{
             display: grid;
             grid-template-columns: 1fr;
-            gap: 8px;
-            margin-top: 10px;
+            gap: 10px;
+            margin-top: 12px;
         }}
         .yvora-line {{
             display: flex;
             gap: 10px;
             align-items: flex-start;
-            background: rgba(255,255,255,0.55);
-            border: 1px solid rgba(14,42,71,0.10);
-            padding: 9px 10px;
-            border-radius: 12px;
+            background: rgba(255,255,255,0.78);
+            border: 1px solid rgba(14,42,71,0.08);
+            padding: 11px 12px;
+            border-radius: 14px;
             color: {BRAND_BLUE};
-            font-size: 0.92rem;
-            line-height: 1.25rem;
+            font-size: 0.95rem;
+            line-height: 1.32rem;
+            box-shadow: 0 2px 10px rgba(14,42,71,0.03);
         }}
         .yvora-line span {{
             white-space: normal;
             word-break: normal;
             overflow-wrap: break-word;
-        }}
-        .yvora-clamp1 {{
-            display: -webkit-box;
-            -webkit-line-clamp: 1;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
         }}
         </style>
         """,
@@ -418,12 +416,17 @@ def standardize_menu(menu_df: pd.DataFrame) -> pd.DataFrame:
     c_desc = pick(["descricao_prato", "descricao", "descrição", "desc"])
     c_ativo = pick(["ativo", "active", "status"])
 
+    # Suporte aos arquivos reais mais recentes
     if "id" in df.columns and not c_id:
         c_id = "id"
     if "prato" in df.columns and not c_nome:
         c_nome = "prato"
+    if "nome" in df.columns and not c_nome:
+        c_nome = "nome"
     if "descrição" in df.columns and not c_desc:
         c_desc = "descrição"
+    if "descricao" in df.columns and not c_desc:
+        c_desc = "descricao"
 
     out = pd.DataFrame()
     out["id_prato"] = df[c_id] if c_id else ""
@@ -432,8 +435,8 @@ def standardize_menu(menu_df: pd.DataFrame) -> pd.DataFrame:
     out["ativo"] = df[c_ativo] if c_ativo else "1"
 
     out["id_prato"] = out["id_prato"].apply(norm_text)
-    out["nome_prato"] = out["nome_prato"].apply(norm_text)
-    out["descricao_prato"] = out["descricao_prato"].apply(norm_text)
+    out["nome_prato"] = out["nome_prato"].apply(clean_display_text)
+    out["descricao_prato"] = out["descricao_prato"].apply(clean_display_text)
     out["ativo"] = out["ativo"].apply(lambda x: 1 if norm_text(x).lower() in ["1", "1.0", "true", "sim"] else 0)
 
     m = out["id_prato"].eq("")
@@ -451,15 +454,15 @@ def _normalize_wine_type(raw: str) -> str:
         return "Espumante"
     if "rose" in t or "rosé" in t:
         return "Rosé"
-    if "branco" in t or "white" in t:
+    if "branco" in t or "white" in t or "chardonnay" in t or "sauvignon" in t or "chenin" in t:
         return "Branco"
-    if "tinto" in t or "red" in t:
+    if "tinto" in t or "red" in t or "primitivo" in t or "malbec" in t or "cabernet" in t or "merlot" in t:
         return "Tinto"
     if "laranja" in t or "orange" in t:
         return "Laranja"
     if "sobremesa" in t or "doce" in t or "dessert" in t or "porto" in t or "sherry" in t:
         return "Sobremesa"
-    return raw.strip().title()
+    return clean_display_text(raw.title())
 
 
 def standardize_wines(wines_df: pd.DataFrame) -> pd.DataFrame:
@@ -476,7 +479,7 @@ def standardize_wines(wines_df: pd.DataFrame) -> pd.DataFrame:
     c_price = pick(["price", "preco", "preço", "valor"])
     c_stock = pick(["estoque", "stock", "qtd", "quantidade"])
     c_active = pick(["active", "ativo", "status"])
-    c_type = pick(["tipo", "cor", "estilo", "wine_type", "type", "categoria"])
+    c_type = pick(["tipo", "cor", "estilo", "wine_type", "type", "categoria", "tipo_vinho_padrao"])
 
     out = pd.DataFrame()
     out["id_vinho"] = df[c_id] if c_id else ""
@@ -487,7 +490,7 @@ def standardize_wines(wines_df: pd.DataFrame) -> pd.DataFrame:
     out["tipo_vinho"] = df[c_type] if c_type else ""
 
     out["id_vinho"] = out["id_vinho"].apply(norm_text)
-    out["nome_vinho"] = out["nome_vinho"].apply(norm_text)
+    out["nome_vinho"] = out["nome_vinho"].apply(clean_display_text)
     out["tipo_vinho"] = out["tipo_vinho"].apply(_normalize_wine_type)
 
     m = out["id_vinho"].eq("")
@@ -508,15 +511,106 @@ def standardize_pairings(pair_df: pd.DataFrame) -> pd.DataFrame:
     return p[p["ativo"] == 1].copy()
 
 
+def _option_label(idx: int) -> str:
+    return "1ª opção" if idx == 0 else "2ª opção"
+
+
+def _dish_context(title: str) -> str:
+    t = clean_display_text(title)
+    if "combinação escolhida" in t.lower():
+        return "na combinação escolhida"
+    if t:
+        return f"no prato {t}"
+    return "neste prato"
+
+
+def _prefix_wine(nome_vinho: str, wine_type: str) -> str:
+    n = clean_display_text(nome_vinho)
+    t = clean_display_text(wine_type)
+    if t:
+        return f"{n} ({t})"
+    return n
+
+
+def looks_generic(s: str) -> bool:
+    t = clean_display_text(s).lower()
+    generic_bad = [
+        "encaixa",
+        "funciona bem",
+        "baixo risco sensorial",
+        "alternativa precisa",
+        "consistente",
+        "ótimo custo-benefício",
+        "leitura fácil",
+        "evita conflito",
+        "sem conflito",
+        "escolhido para",
+    ]
+    if not t:
+        return True
+    return sum(1 for k in generic_bad if k in t) >= 2 or len(t) < 35
+
+
+def strip_strategy_prefix(text: str) -> str:
+    s = clean_display_text(text)
+    s = re.sub(r"^estrat[eé]gia\s*:\s*[^.]{2,40}\.\s*", "", s, flags=re.IGNORECASE).strip()
+    return s
+
+
+def first_sentence(text: str) -> str:
+    s = clean_display_text(text)
+    if not s:
+        return ""
+    m = re.split(r"(?<=[.!?])\s+", s)
+    return m[0] if m and m[0] else s
+
+
+def _compact_text(text: str, hard_max: int = 180) -> str:
+    s = clean_display_text(text)
+    if len(s) <= hard_max:
+        return s
+    cut = s.rfind(" ", 0, hard_max)
+    if cut <= 0:
+        return s[:hard_max].rstrip()
+    return s[:cut].rstrip()
+
+
+def _strategy_label(strategy: str) -> str:
+    mapping = {
+        "Limpeza": "limpa o paladar",
+        "Ponte aromática": "repete aromas do prato",
+        "Contraste": "equilibra por contraste",
+        "Amplificação": "realça sabores",
+        "Equilíbrio": "acompanha a intensidade",
+        "Estrutura": "segura gordura e proteína",
+    }
+    return mapping.get(strategy, "")
+
+
+def _guess_strategy(text: str) -> str:
+    t = norm_text(text).lower()
+    if "limpeza" in t:
+        return "Limpeza"
+    if "ponte arom" in t or "ponte" in t:
+        return "Ponte aromática"
+    if "contraste" in t or "contraponto" in t:
+        return "Contraste"
+    if "amplifica" in t or "realça" in t:
+        return "Amplificação"
+    if "equilíb" in t or "equilibr" in t:
+        return "Equilíbrio"
+    if "estrutura" in t:
+        return "Estrutura"
+    return ""
+
+
 def _parse_profile_line(text: str) -> Dict[str, str]:
     t = norm_text(text).lower()
     out: Dict[str, str] = {}
 
-    def num(label: str) -> Optional[int]:
+    def num(label: str):
         m = re.search(rf"{label}\s*[:=\-]?\s*(\d)\s*/\s*5", t)
-        if m:
-            return int(m.group(1))
-        return None
+        return int(m.group(1)) if m else None
 
     ac = num("acidez")
     co = num("corpo")
@@ -544,222 +638,158 @@ def _pct_from_5(n: int) -> int:
     return int((max(0, min(5, n)) / 5) * 100)
 
 
-def _guess_strategy(text: str) -> str:
-    t = norm_text(text).lower()
-    if "limpeza" in t:
-        return "Limpeza"
-    if "ponte arom" in t or "ponte" in t:
-        return "Ponte aromática"
-    if "contraste" in t or "contraponto" in t:
-        return "Contraste"
-    if "amplifica" in t or "realça" in t:
-        return "Amplificação"
-    if "equilíb" in t or "equilibr" in t:
-        return "Equilíbrio"
-    if "estrutura" in t:
-        return "Estrutura"
-    return ""
-
-
-def _strategy_label(strategy: str) -> str:
-    mapping = {
-        "Limpeza": "limpa o paladar",
-        "Ponte aromática": "repete aromas do prato",
-        "Contraste": "equilibra por contraste",
-        "Amplificação": "realça sabores",
-        "Equilíbrio": "acompanha a intensidade",
-        "Estrutura": "segura gordura e proteína",
-    }
-    return mapping.get(strategy, "")
-
-
-def strip_strategy_prefix(text: str) -> str:
-    """Remove 'Estratégia: X.' do começo do texto."""
-    s = clean_display_text(text)
-    s = re.sub(r"^estrat[eé]gia\s*:\s*[^.]{2,30}\.\s*", "", s, flags=re.IGNORECASE).strip()
-    return s
-
-
-def first_sentence(text: str) -> str:
-    s = clean_display_text(text)
-    if not s:
-        return ""
-    m = re.split(r"(?<=[.!?])\s+", s)
-    return m[0] if m and m[0] else s
-
-
-def _compact_one_line(text: str, hard_max: int = 140) -> str:
-    s = clean_display_text(text)
-    if len(s) <= hard_max:
-        return s
-    cut = s.rfind(" ", 0, hard_max)
-    if cut <= 0:
-        return s[:hard_max].rstrip()
-    return s[:cut].rstrip()
-
-
-GENERIC_BAD = [
-    "encaixar com prato",
-    "sem conflito",
-    "baixo risco sensorial",
-    "alternativa precisa",
-    "consistente",
-    "ótimo custo-benefício",
-    "leitura fácil",
-    "não brigar",
-    "evita conflito",
-]
-
-
-def looks_generic(s: str) -> bool:
-    t = clean_display_text(s).lower()
-    if not t:
-        return True
-    hit = sum(1 for k in GENERIC_BAD if k in t)
-    return hit >= 2 or len(t) < 35
-
-
-def _prefix_wine(nome_vinho: str, wine_type: str) -> str:
-    n = clean_display_text(nome_vinho)
-    t = clean_display_text(wine_type)
-    if t:
-        return f"{n} ({t})"
-    return n
-
-
-def pick_mechanism(por_que_combo: str, profile: Dict[str, str]) -> str:
-    """Escolhe uma frase que explique o mecanismo de forma concreta."""
+def pick_mechanism(por_que_combo: str, profile: Dict[str, str], title: str = "") -> str:
     s = strip_strategy_prefix(por_que_combo)
-
-    # tenta achar frase com palavras sensoriais úteis
     candidates = re.split(r"(?<=[.!?])\s+", s)
-    good = []
     for c in candidates:
         cl = clean_display_text(c).lower()
-        if any(k in cl for k in ["acidez", "tanin", "corpo", "gordur", "sal", "tost", "cremos", "prote", "umami", "frita", "crocan"]):
-            good.append(clean_display_text(c))
-    if good:
-        return _compact_one_line(good[0], 140)
+        if any(k in cl for k in ["acidez", "tanin", "corpo", "gordur", "sal", "tost", "cremos", "prote", "frita", "crocan"]):
+            return _compact_text(c, 155)
 
-    # fallback pelo perfil
     ac = int(profile.get("acidez", "0") or "0")
     co = int(profile.get("corpo", "0") or "0")
     ta = int(profile.get("tanino", "0") or "0")
+    ctx = _dish_context(title)
 
+    if ac >= 4 and co <= 3:
+        return f"{ctx.capitalize()}, a acidez alta limpa gordura e sal sem deixar o vinho pesado."
     if ac >= 4:
-        return "A acidez alta limpa gordura e sal, deixando a boca leve entre as mordidas."
+        return f"{ctx.capitalize()}, a acidez renova o paladar e segura a gordura sem cansar."
     if co >= 4 and ta >= 3:
-        return "Corpo e tanino sustentam proteína e fritura, mantendo o sabor firme sem desmanchar."
+        return f"{ctx.capitalize()}, corpo e tanino sustentam proteína e fritura com mais firmeza."
     if co >= 4:
-        return "O corpo acompanha a intensidade do prato e segura o final na boca."
+        return f"{ctx.capitalize()}, o corpo acompanha a intensidade e não deixa o vinho desaparecer."
     if ta <= 1:
-        return "Tanino baixo evita amargor com sal e tostado, mantendo o conjunto suave."
-    return "O vinho foi escolhido para acompanhar a intensidade e manter o paladar equilibrado."
+        return f"{ctx.capitalize()}, o tanino baixo evita amargor com sal e tostado."
+    return f"{ctx.capitalize()}, o vinho acompanha a intensidade do prato com leitura limpa na boca."
 
 
-def pick_avoid(por_que_combo: str, profile: Dict[str, str]) -> str:
-    """Risco evitado, sempre específico."""
+def pick_avoid(por_que_combo: str, profile: Dict[str, str], title: str = "") -> str:
     t = clean_display_text(por_que_combo).lower()
+    ctx = _dish_context(title)
+
     if "amarg" in t:
-        return "Evita amargor com sal e tostado porque o tanino está bem controlado."
+        return f"{ctx.capitalize()}, evita amargor com sal e tostado."
     if "apaga" in t or "some" in t:
-        return "Evita o vinho sumir porque o corpo acompanha a intensidade do prato."
+        return f"{ctx.capitalize()}, evita que o vinho suma diante do prato."
     if "pesad" in t or "engordur" in t:
-        return "Evita peso na boca porque a acidez renova o paladar."
+        return f"{ctx.capitalize()}, evita sensação pesada na boca."
     if "conflit" in t:
-        return "Evita choque com o queijo porque sal e gordura ficam sob controle."
-    # fallback por perfil
+        return f"{ctx.capitalize()}, evita choque com o queijo."
+
     ac = int(profile.get("acidez", "0") or "0")
     co = int(profile.get("corpo", "0") or "0")
     ta = int(profile.get("tanino", "0") or "0")
+
     if ta >= 4:
-        return "Evita aspereza: o tanino é alto, então o prato precisa ter gordura/proteína para polir."
+        return f"{ctx.capitalize()}, evita aspereza quando há proteína e gordura suficientes."
     if ta <= 1:
-        return "Evita amargor com queijo salgado porque o tanino é baixo."
+        return f"{ctx.capitalize()}, evita amargor com queijo salgado."
     if co <= 2:
-        return "Evita excessos: corpo leve para não competir com o prato."
+        return f"{ctx.capitalize()}, evita excesso para não competir com o prato."
     if ac >= 4:
-        return "Evita sensação enjoativa porque a acidez limpa gordura e sal."
-    return "Evita desequilíbrio: escolhido para não pesar nem desaparecer."
+        return f"{ctx.capitalize()}, evita sensação enjoativa porque a acidez limpa o paladar."
+    return f"{ctx.capitalize()}, evita desequilíbrio entre carne, queijo e vinho."
 
 
-def pick_feel(por_que_vale: str, por_que_combo: str, profile: Dict[str, str]) -> str:
-    """Sensação final na boca, concreta."""
+def pick_feel(por_que_vale: str, por_que_combo: str, profile: Dict[str, str], title: str = "") -> str:
     s = first_sentence(por_que_vale) or first_sentence(por_que_combo)
     s = strip_strategy_prefix(s)
 
     if not looks_generic(s):
-        return _compact_one_line(s, 140)
+        return _compact_text(s, 155)
 
-    # fallback baseado no perfil e aromas
     aromas = clean_display_text(profile.get("aromas", ""))
     final = clean_display_text(profile.get("final", ""))
-
     ac = int(profile.get("acidez", "0") or "0")
     co = int(profile.get("corpo", "0") or "0")
     ta = int(profile.get("tanino", "0") or "0")
+    ctx = _dish_context(title)
 
     parts = []
     if aromas:
         parts.append(f"aromas de {aromas}")
-    parts.append(f"corpo {co}/5")
-    if ta == 0:
-        parts.append("sem tanino")
-    else:
+    if ac:
+        parts.append(f"acidez {ac}/5")
+    if co:
+        parts.append(f"corpo {co}/5")
+    if ta:
         parts.append(f"tanino {ta}/5")
-    parts.append(f"acidez {ac}/5")
     if final:
         parts.append(f"final {final}")
 
-    return _compact_one_line("Na boca, entrega " + ", ".join(parts) + ".", 160)
+    return _compact_text(f"{ctx.capitalize()}, entrega " + ", ".join(parts) + ".", 170)
 
 
-def build_carne_line(por_que_carne: str, profile: Dict[str, str]) -> str:
-    """Linha útil: efeito do vinho sobre a carne, não descrição do prato."""
+def build_carne_line(por_que_carne: str, profile: Dict[str, str], title: str = "") -> str:
     s = clean_display_text(por_que_carne)
     s = re.sub(r"^a\s+carne\s*\([^)]+\)\s*", "", s, flags=re.IGNORECASE).strip()
+    s = re.sub(r"^a\s+carne\s*", "", s, flags=re.IGNORECASE).strip()
     s = first_sentence(s)
 
-    if not looks_generic(s) and any(k in s.lower() for k in ["acidez", "tanin", "corpo", "gordur", "prote", "tost", "frita", "suco", "umami"]):
-        return _compact_one_line(s, 140)
+    if not looks_generic(s) and any(k in s.lower() for k in ["acidez", "tanin", "corpo", "gordur", "prote", "tost", "frita", "umami"]):
+        return _compact_text(s, 160)
 
-    # fallback por perfil
     ac = int(profile.get("acidez", "0") or "0")
     co = int(profile.get("corpo", "0") or "0")
     ta = int(profile.get("tanino", "0") or "0")
 
     if ta >= 3:
-        return "O tanino se liga à proteína e deixa a mordida mais macia, sem ficar seca."
+        return "Na carne, o tanino se liga à proteína e deixa a mordida mais macia, sem secar."
     if ac >= 4:
-        return "A acidez limpa a gordura da carne e prepara a próxima mordida."
+        return "Na carne, a acidez limpa a gordura e deixa a próxima mordida mais clara."
     if co >= 4:
-        return "O corpo sustenta a intensidade da carne e mantém o sabor firme."
-    return "Acompanha a carne sem pesar e mantém o paladar organizado."
+        return "Na carne, o corpo sustenta a intensidade sem deixar o vinho pequeno."
+    return "Na carne, o vinho acompanha a textura sem pesar."
 
 
-def build_queijo_line(por_que_queijo: str, profile: Dict[str, str]) -> str:
-    """Linha útil: efeito do vinho sobre o queijo."""
+def build_queijo_line(por_que_queijo: str, profile: Dict[str, str], title: str = "") -> str:
     s = clean_display_text(por_que_queijo)
     s = re.sub(r"^o\s+queijo\s*\([^)]+\)\s*", "", s, flags=re.IGNORECASE).strip()
+    s = re.sub(r"^o\s+queijo\s*", "", s, flags=re.IGNORECASE).strip()
     s = first_sentence(s)
 
-    if not looks_generic(s) and any(k in s.lower() for k in ["sal", "cremos", "gordur", "acidez", "tanin", "láct", "matur"]):
-        return _compact_one_line(s, 140)
+    if not looks_generic(s) and any(k in s.lower() for k in ["sal", "cremos", "gordur", "acidez", "tanin", "matur", "láct"]):
+        return _compact_text(s, 160)
 
     ac = int(profile.get("acidez", "0") or "0")
     ta = int(profile.get("tanino", "0") or "0")
 
     if ac >= 4:
-        return "A acidez corta a cremosidade e limpa o sal do queijo."
+        return "No queijo, a acidez corta a cremosidade e organiza o sal."
     if ta <= 1:
-        return "Tanino baixo evita amargor com queijo salgado e deixa o final mais limpo."
-    return "Equilibra sal e gordura do queijo, sem deixar a boca pesada."
+        return "No queijo, o tanino baixo evita amargor e deixa o final mais limpo."
+    return "No queijo, o vinho equilibra sal e gordura sem pesar."
 
 
-def build_combo_line(strategy: str, por_que_combo: str, profile: Dict[str, str]) -> str:
-    label = _strategy_label(strategy) or "encaixa o conjunto"
-    mech = pick_mechanism(por_que_combo, profile)
-    return _compact_one_line(f"Como funciona: {label}. {mech}", 170)
+def build_combo_line(strategy: str, por_que_combo: str, profile: Dict[str, str], title: str = "") -> str:
+    label = _strategy_label(strategy) or "acompanha o conjunto"
+    mech = pick_mechanism(por_que_combo, profile, title)
+    return _compact_text(f"Como funciona: {label}. {mech}", 190)
+
+
+def context_box(nome_vinho: str, wine_type: str, strategy: str, profile: Dict[str, str], por_que_combo: str, por_que_vale: str, title: str) -> str:
+    vinho = _prefix_wine(nome_vinho, wine_type)
+    prato_ctx = _dish_context(title)
+
+    because = pick_mechanism(por_que_combo, profile, title)
+    avoid = pick_avoid(por_que_combo, profile, title)
+    feel = pick_feel(por_que_vale, por_que_combo, profile, title)
+
+    strat_label = _strategy_label(strategy)
+    strat_text = f"Leitura da harmonização: {strat_label}." if strat_label else "Leitura da harmonização: encaixe geral do conjunto."
+
+    return f"""
+    <div class="yvora-context">
+      <b>Leitura rápida</b><br>
+      <b>Vinho:</b> {vinho}<br>
+      <b>Prato considerado:</b> {prato_ctx}<br>
+      <b>Por que entra bem:</b> {because}<br>
+      <b>O que evita no paladar:</b> {avoid}<br>
+      <b>{strat_text}</b><br>
+      <b>O que você tende a sentir:</b> {feel}
+    </div>
+    """
 
 
 def render_visual_profile(row: Dict):
@@ -804,13 +834,16 @@ def render_visual_profile(row: Dict):
         st.markdown(f"<div class='yvora-mini'>{'  |  '.join(line)}</div>", unsafe_allow_html=True)
 
 
-def render_icon_row(row: Dict, wine_type: str):
+def render_icon_row(row: Dict, wine_type: str, option_label: str):
     strategy = _guess_strategy(row.get("por_que_combo", ""))
     rot = clean_display_text(row.get("rotulo_valor", "$")) or "$"
 
-    chips = [f"<span class='yvora-chip'>🏷️ {rot}</span>"]
+    chips = [f"<span class='yvora-chip'>✨ {option_label}</span>"]
+    chips.append(f"<span class='yvora-chip'>🏷️ {rot}</span>")
+
     if wine_type:
         chips.append(f"<span class='yvora-chip'>🍷 {clean_display_text(wine_type)}</span>")
+
     if strategy:
         icon = "🧭"
         if strategy == "Limpeza":
@@ -830,31 +863,6 @@ def render_icon_row(row: Dict, wine_type: str):
     st.markdown("".join(chips), unsafe_allow_html=True)
 
 
-def context_box(nome_vinho: str, wine_type: str, strategy: str, profile: Dict[str, str], por_que_combo: str, por_que_vale: str) -> str:
-    vinho = _prefix_wine(nome_vinho, wine_type)
-
-    because = pick_mechanism(por_que_combo, profile)
-    avoid = pick_avoid(por_que_combo, profile)
-    feel = pick_feel(por_que_vale, por_que_combo, profile)
-
-    strat_label = _strategy_label(strategy)
-    if strat_label:
-        strat_text = f"Como foi pensado: {strat_label}."
-    else:
-        strat_text = "Como foi pensado: equilíbrio do conjunto."
-
-    return f"""
-    <div class="yvora-context">
-      <b>Resumo rápido</b><br>
-      <b>Vinho:</b> {vinho}<br>
-      <b>Por que combina:</b> {because}<br>
-      <b>O que evita:</b> {avoid}<br>
-      <b>{strat_text}</b><br>
-      <b>Na boca:</b> {feel}
-    </div>
-    """
-
-
 def render_recos_block(title: str, p_subset: pd.DataFrame, wines_type_map: Dict[str, str]):
     st.markdown("<div class='yvora-card'>", unsafe_allow_html=True)
     st.markdown(f"#### {title}")
@@ -862,30 +870,29 @@ def render_recos_block(title: str, p_subset: pd.DataFrame, wines_type_map: Dict[
     order = {"$$$": 0, "$$": 1, "$": 2}
     p_subset = p_subset.copy()
     p_subset["ord"] = p_subset["rotulo_valor"].apply(lambda x: order.get(clean_display_text(x), 9))
-    p_subset = p_subset.sort_values(["ord", "nome_vinho"], ascending=True).head(3)
+    p_subset = p_subset.sort_values(["ord", "nome_vinho"], ascending=True).head(2)
 
-    for _, row in p_subset.iterrows():
+    for idx, (_, row) in enumerate(p_subset.iterrows()):
         nome_vinho = clean_display_text(row.get("nome_vinho", ""))
         id_vinho = clean_display_text(row.get("id_vinho", ""))
         wine_type = clean_display_text(wines_type_map.get(id_vinho, ""))
+        option_label = _option_label(idx)
 
         st.markdown(f"### {nome_vinho}")
-        render_icon_row(row, wine_type)
+        render_icon_row(row, wine_type, option_label)
 
         frase = clean_display_text(row.get("frase_mesa", ""))
         if frase:
             vinho = _prefix_wine(nome_vinho, wine_type)
-            mesa = _compact_one_line(frase, 140)
+            mesa = _compact_text(frase, 160)
             st.markdown(
-                f"<div class='yvora-quote'>💬 <b>{vinho}</b>: <span class='yvora-clamp1'>{mesa}</span></div>",
+                f"<div class='yvora-quote'>💬 <b>{vinho}</b>: {mesa}</div>",
                 unsafe_allow_html=True,
             )
 
-        # perfil visual
         render_visual_profile(row)
         profile = _parse_profile_line(row.get("a_melhor_para", ""))
 
-        # textos completos
         full_pc = clean_display_text(row.get("por_que_carne", ""))
         full_pq = clean_display_text(row.get("por_que_queijo", ""))
         full_combo = clean_display_text(row.get("por_que_combo", ""))
@@ -893,20 +900,21 @@ def render_recos_block(title: str, p_subset: pd.DataFrame, wines_type_map: Dict[
 
         strategy = _guess_strategy(full_combo)
 
-        # bloco que realmente orienta decisão
-        st.markdown(context_box(nome_vinho, wine_type, strategy, profile, full_combo, por_vale), unsafe_allow_html=True)
+        st.markdown(
+            context_box(nome_vinho, wine_type, strategy, profile, full_combo, por_vale, title),
+            unsafe_allow_html=True,
+        )
 
-        # 3 linhas úteis (efeito do vinho)
-        l1 = build_carne_line(full_pc, profile)
-        l2 = build_queijo_line(full_pq, profile)
-        l3 = build_combo_line(strategy, full_combo, profile)
+        l1 = build_carne_line(full_pc, profile, title)
+        l2 = build_queijo_line(full_pq, profile, title)
+        l3 = build_combo_line(strategy, full_combo, profile, title)
 
         st.markdown(
             f"""
             <div class="yvora-summary">
-              <div class="yvora-line">🥩 <span class="yvora-clamp1">{l1}</span></div>
-              <div class="yvora-line">🧀 <span class="yvora-clamp1">{l2}</span></div>
-              <div class="yvora-line">🧠 <span class="yvora-clamp1">{l3}</span></div>
+              <div class="yvora-line">🥩 <span>{l1}</span></div>
+              <div class="yvora-line">🧀 <span>{l2}</span></div>
+              <div class="yvora-line">🧠 <span>{l3}</span></div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -973,7 +981,7 @@ def render_client(menu: pd.DataFrame, wines: pd.DataFrame, pairings: pd.DataFram
                 unsafe_allow_html=True,
             )
         else:
-            render_recos_block("Para os 2 pratos (equilíbrio do conjunto)", p_pair, wines_type_map)
+            render_recos_block("Combinação escolhida", p_pair, wines_type_map)
 
         st.write("")
 
