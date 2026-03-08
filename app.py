@@ -61,8 +61,7 @@ def clean_display_text(s: str) -> str:
     if not s:
         return ""
     s = s.replace("_", " ")
-    s = re.sub(r"\s+", " ", s).strip()
-    return s
+    return re.sub(r"\s+", " ", s).strip()
 
 
 def to_int(x, default: int = 0) -> int:
@@ -129,9 +128,9 @@ def _to_gsheet_csv_export_url(url: str) -> str:
     if "docs.google.com/spreadsheets" in u:
         sheet_id, gid = _extract_sheet_id_and_gid(u)
         if sheet_id:
-            base = f"https://docs.google.com/spreadsheets/d/{sheet_id}/export"
-            params = {"format": "csv", "gid": gid or "0"}
-            return base + "?" + urlencode(params)
+            return f"https://docs.google.com/spreadsheets/d/{sheet_id}/export?" + urlencode(
+                {"format": "csv", "gid": gid or "0"}
+            )
 
     return u
 
@@ -196,23 +195,15 @@ def normalize_cols(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def make_key_for_pratos(prato_ids: List[str]) -> str:
-    ids_sorted = sorted([norm_text(x) for x in prato_ids if norm_text(x)])
-    return "|".join(ids_sorted)
+    return "|".join(sorted([norm_text(x) for x in prato_ids if norm_text(x)]))
 
 
 def is_wine_available_now(w: Dict) -> bool:
-    ativo = to_int(w.get("ativo", w.get("active", 0)), 0)
-    est = to_int(w.get("estoque", 0), 0)
-    return ativo == 1 and est > 0
+    return to_int(w.get("ativo", w.get("active", 0)), 0) == 1 and to_int(w.get("estoque", 0), 0) > 0
 
 
 def set_page_style():
-    st.set_page_config(
-        page_title=APP_TITLE,
-        page_icon="🍷",
-        layout="wide",
-        initial_sidebar_state="expanded",
-    )
+    st.set_page_config(page_title=APP_TITLE, page_icon="🍷", layout="wide", initial_sidebar_state="expanded")
     st.markdown(
         f"""
         <style>
@@ -285,13 +276,22 @@ def set_page_style():
             font-weight: 800;
             color: {BRAND_BLUE};
             margin-bottom: 4px;
-            letter-spacing: -0.02em;
+        }}
+
+        .yvora-card-sub, .yvora-mini, .yvora-muted {{
+            color: {BRAND_MUTED};
         }}
 
         .yvora-card-sub {{
-            color: {BRAND_MUTED};
             font-size: 0.93rem;
             margin-bottom: 10px;
+        }}
+
+        .yvora-section-head {{
+            color: {BRAND_BLUE};
+            font-size: 1.02rem;
+            font-weight: 800;
+            margin: 6px 0 8px 0;
         }}
 
         .yvora-warn {{
@@ -316,7 +316,6 @@ def set_page_style():
             margin-top: 6px;
             background: rgba(255,255,255,0.8);
             white-space: nowrap;
-            box-shadow: 0 2px 8px rgba(14,42,71,0.04);
         }}
 
         .yvora-quote {{
@@ -342,20 +341,13 @@ def set_page_style():
             line-height: 1.5rem;
         }}
 
-        .yvora-signal-grid {{
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
-            gap: 10px;
-            margin-top: 12px;
-            margin-bottom: 6px;
-        }}
-
-        .yvora-signal {{
+        .yvora-signal-box {{
             background: rgba(255,255,255,0.78);
             border: 1px solid rgba(14,42,71,0.08);
             border-radius: 16px;
-            padding: 12px 12px 10px 12px;
-            min-height: 78px;
+            padding: 12px;
+            min-height: 72px;
+            height: 100%;
         }}
 
         .yvora-signal-label {{
@@ -421,13 +413,6 @@ def set_page_style():
             width: 0%;
         }}
 
-        .yvora-mini {{
-            color: {BRAND_MUTED};
-            font-size: 0.9rem;
-            margin-top: 6px;
-            line-height: 1.3rem;
-        }}
-
         .yvora-summary {{
             display: grid;
             grid-template-columns: 1fr;
@@ -446,25 +431,12 @@ def set_page_style():
             color: {BRAND_BLUE};
             font-size: 0.95rem;
             line-height: 1.38rem;
-            box-shadow: 0 2px 10px rgba(14,42,71,0.03);
         }}
 
         .yvora-line span {{
             white-space: normal;
             word-break: normal;
             overflow-wrap: break-word;
-        }}
-
-        .yvora-section-head {{
-            color: {BRAND_BLUE};
-            font-size: 1.02rem;
-            font-weight: 800;
-            margin: 6px 0 8px 0;
-            letter-spacing: -0.01em;
-        }}
-
-        .yvora-muted {{
-            color: {BRAND_MUTED};
         }}
 
         .stMultiSelect label {{
@@ -479,15 +451,24 @@ def set_page_style():
         }}
 
         @media (max-width: 980px) {{
-            .yvora-signal-grid {{
-                grid-template-columns: repeat(2, minmax(0, 1fr));
-            }}
-
             .yvora-meters {{
                 grid-template-columns: 1fr;
             }}
         }}
         </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _signal_box(label: str, value: str, sub: str):
+    st.markdown(
+        f"""
+        <div class="yvora-signal-box">
+          <div class="yvora-signal-label">{label}</div>
+          <div class="yvora-signal-value">{value}</div>
+          <div class="yvora-signal-sub">{sub}</div>
+        </div>
         """,
         unsafe_allow_html=True,
     )
@@ -531,9 +512,7 @@ def header_area():
             """
             <div class="yvora-hero">
               <div class="yvora-title">Wine Pairing</div>
-              <div class="yvora-subtitle">
-                Escolha até 2 pratos para ver a recomendação de vinho.
-              </div>
+              <div class="yvora-subtitle">Escolha até 2 pratos para ver a recomendação de vinho.</div>
             </div>
             """,
             unsafe_allow_html=True,
@@ -720,31 +699,19 @@ def render_signal_grid(row: Dict, option_label: str):
     score = to_int(row.get("score_harmonizacao", ""), 0)
     score_label, score_icon = _badge_score(str(score))
     strategy = clean_display_text(row.get("estrategia_harmonizacao", ""))
-    confidence = clean_display_text(row.get("nivel_confianca", ""))
     role = clean_display_text(row.get("papel_do_vinho", ""))
-    seal = clean_display_text(row.get("selo_harmonizacao", ""))
 
-    items = [
-        (f"{score_icon} {option_label}", f"{score}/100" if score else "Sem score", score_label),
-        ("Estratégia", strategy or "Não informada", "Como o vinho entra"),
-        ("Papel do vinho", role or "Não informado", "O que ele faz"),
-        ("Confiança", confidence or "Não informada", seal or "Leitura final"),
-    ]
+    c1, c2 = st.columns(2)
+    with c1:
+        _signal_box(f"{score_icon} {option_label}", f"{score}/100" if score else "Sem score", score_label)
+    with c2:
+        _signal_box("Estratégia", strategy or "Não informada", "Como o vinho entra")
 
-    cards = []
-    for label, value, sub in items:
-        cards.append(
-            f"""
-            <div class="yvora-signal">
-              <div class="yvora-signal-label">{label}</div>
-              <div class="yvora-signal-value">{value}</div>
-              <div class="yvora-signal-sub">{sub}</div>
-            </div>
-            """
-        )
-
-    html = '<div class="yvora-signal-grid">' + "".join(cards) + "</div>"
-    st.markdown(html, unsafe_allow_html=True)
+    c3, c4 = st.columns(2)
+    with c3:
+        _signal_box("Papel do vinho", role or "Não informado", "O que ele faz")
+    with c4:
+        _signal_box("Leitura", "Recomendação", "Resumo da escolha")
 
 
 def _parse_profile_line(text: str) -> Dict[str, str]:
@@ -808,6 +775,7 @@ def render_visual_profile(row: Dict):
     meter("Acidez", ac)
     meter("Corpo", co)
     meter("Tanino", ta)
+
     st.markdown("</div>", unsafe_allow_html=True)
 
     fi = prof.get("final", "")
@@ -870,6 +838,34 @@ def build_summary_lines(row: Dict) -> Tuple[str, str, str]:
     return pc, pq, combo
 
 
+def build_reason_text(row: Dict, title: str) -> str:
+    nome_vinho = clean_display_text(row.get("nome_vinho", ""))
+    prato = clean_display_text(title)
+    score_reason = clean_display_text(row.get("motivo_score", ""))
+    role = clean_display_text(row.get("papel_do_vinho", ""))
+    strategy = clean_display_text(row.get("estrategia_harmonizacao", ""))
+
+    if score_reason and nome_vinho and prato:
+        base = score_reason.rstrip(".")
+        if nome_vinho.lower() not in base.lower():
+            return f"{nome_vinho} foi recomendado para {prato} porque {base[:1].lower() + base[1:] if len(base) > 1 else base.lower()}."
+        if prato.lower() not in base.lower():
+            return f"{base} em {prato}."
+        return base + "."
+
+    parts = []
+    if role:
+        parts.append(role)
+    if strategy:
+        parts.append(strategy)
+
+    if nome_vinho and prato and parts:
+        return f"{nome_vinho} foi recomendado para {prato} por {', '.join(parts)}."
+    if nome_vinho and prato:
+        return f"{nome_vinho} foi recomendado para {prato} por leitura sensorial do prato e do vinho."
+    return ""
+
+
 def render_recos_block(title: str, p_subset: pd.DataFrame, wines_type_map: Dict[str, str], wines_meta_map: Dict[str, Dict[str, str]]):
     st.markdown("<div class='yvora-card'>", unsafe_allow_html=True)
     st.markdown(f"<div class='yvora-card-title'>{title}</div>", unsafe_allow_html=True)
@@ -902,20 +898,17 @@ def render_recos_block(title: str, p_subset: pd.DataFrame, wines_type_map: Dict[
 
         render_visual_profile(row)
 
-        context_parts = []
         score = to_int(row.get("score_harmonizacao", ""), 0)
-        for label, key in [
-            ("Score de harmonização", "score_harmonizacao"),
-            ("Papel do vinho", "papel_do_vinho"),
-            ("Confiança", "nivel_confianca"),
-            ("Selo", "selo_harmonizacao"),
-            ("Motivo técnico", "motivo_score"),
-        ]:
-            value = clean_display_text(row.get(key, ""))
-            if key == "score_harmonizacao" and score:
-                context_parts.append(f"<b>{label}:</b> {score}/100")
-            elif key != "score_harmonizacao" and value:
-                context_parts.append(f"<b>{label}:</b> {value}")
+        role = clean_display_text(row.get("papel_do_vinho", ""))
+        score_reason = build_reason_text(row, title)
+
+        context_parts = []
+        if score:
+            context_parts.append(f"<b>Score de harmonização:</b> {score}/100")
+        if role:
+            context_parts.append(f"<b>Papel do vinho:</b> {role}")
+        if score_reason:
+            context_parts.append(f"<b>Leitura técnica:</b> {score_reason}")
 
         if context_parts:
             st.markdown(f"<div class='yvora-context'>{'<br>'.join(context_parts)}</div>", unsafe_allow_html=True)
@@ -1057,3 +1050,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+"""
+path = Path("/mnt/data/app_yvora_pairing_correcao_completa.py")
+path.write_text(code, encoding="utf-8")
+print(path)
+	RTLU to=python_user_visible.exec code
