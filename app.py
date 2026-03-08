@@ -1,17 +1,16 @@
 import hashlib
 import io
 import re
-import unicodedata
 from pathlib import Path
+import unicodedata
 from typing import Dict, List, Optional, Tuple
-from urllib.parse import parse_qs, urlencode, urlparse
+from urllib.parse import urlparse, parse_qs, urlencode
 
 import pandas as pd
 import requests
 import streamlit as st
 
 APP_TITLE = "YVORA Wine Pairing"
-
 BRAND_BG = "#EFE7DD"
 BRAND_BLUE = "#0E2A47"
 BRAND_MUTED = "#6B7785"
@@ -475,6 +474,19 @@ def set_page_style():
     st.markdown(css, unsafe_allow_html=True)
 
 
+def _signal_box(label: str, value: str, sub: str):
+    st.markdown(
+        f"""
+        <div class="yvora-signal-box">
+          <div class="yvora-signal-label">{label}</div>
+          <div class="yvora-signal-value">{value}</div>
+          <div class="yvora-signal-sub">{sub}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def score_to_stars(score_raw: str) -> int:
     score = to_int(score_raw, 0)
     if score >= 90:
@@ -871,6 +883,40 @@ def standardize_pairings(pair_df: pd.DataFrame) -> pd.DataFrame:
     return p[p["ativo"] == 1].copy()
 
 
+def load_all_data() -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    menu_url = _get_secret("MENU_SHEET_URL", "")
+    wines_url = _get_secret("WINES_SHEET_URL", "")
+    pairings_url = _get_secret("PAIRINGS_SHEET_URL", "")
+
+    if not menu_url:
+        raise ValueError("MENU_SHEET_URL não configurado.")
+    if not wines_url:
+        raise ValueError("WINES_SHEET_URL não configurado.")
+    if not pairings_url:
+        raise ValueError("PAIRINGS_SHEET_URL não configurado.")
+
+    menu_df = normalize_cols(load_csv_from_url(menu_url))
+    wines_df = normalize_cols(load_csv_from_url(wines_url))
+    pair_df = normalize_cols(load_csv_from_url(pairings_url))
+    return menu_df, wines_df, pair_df
+
+
+def header_area():
+    col1, col2 = st.columns([1, 4], vertical_alignment="center")
+    with col1:
+        render_logo(width=130)
+    with col2:
+        st.markdown(
+            """
+            <div class="yvora-hero">
+              <div class="yvora-title">Wine Pairing</div>
+              <div class="yvora-subtitle">Escolha até 2 pratos para ver a recomendação de vinho.</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
 def render_recos_block(
     title: str,
     p_subset: pd.DataFrame,
@@ -953,22 +999,6 @@ def render_recos_block(
         st.divider()
 
     st.markdown("</div>", unsafe_allow_html=True)
-
-
-def header_area():
-    col1, col2 = st.columns([1, 4], vertical_alignment="center")
-    with col1:
-        render_logo(width=130)
-    with col2:
-        st.markdown(
-            """
-            <div class="yvora-hero">
-              <div class="yvora-title">Wine Pairing</div>
-              <div class="yvora-subtitle">Escolha até 2 pratos para ver a recomendação de vinho.</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
 
 
 def render_client(menu: pd.DataFrame, wines: pd.DataFrame, pairings: pd.DataFrame):
@@ -1088,10 +1118,7 @@ def main():
     header_area()
 
     try:
-        menu_df = normalize_cols(load_csv_from_url(_get_secret("MENU_SHEET_URL", "")))
-        wines_df = normalize_cols(load_csv_from_url(_get_secret("WINES_SHEET_URL", "")))
-        pair_df = normalize_cols(load_csv_from_url(_get_secret("PAIRINGS_SHEET_URL", "")))
-
+        menu_df, wines_df, pair_df = load_all_data()
         menu = standardize_menu(menu_df)
         wines = standardize_wines(wines_df)
         pairings = standardize_pairings(pair_df)
