@@ -48,8 +48,11 @@ def _get_secret(key: str, default: str = "") -> str:
 
 
 def norm_text(x) -> str:
-    if pd.isna(x):
-        return ""
+    try:
+        if pd.isna(x):
+            return ""
+    except Exception:
+        pass
     s = str(x)
     s = s.replace("—", "-").replace("–", "-").replace("•", "-")
     s = unicodedata.normalize("NFC", s)
@@ -204,261 +207,259 @@ def is_wine_available_now(w: Dict) -> bool:
 
 def set_page_style():
     st.set_page_config(page_title=APP_TITLE, page_icon="🍷", layout="wide", initial_sidebar_state="expanded")
-    st.markdown(
-        f"""
-        <style>
-        .stApp {{
-            background:
-                radial-gradient(circle at top right, rgba(198,169,106,0.12), transparent 22%),
-                linear-gradient(180deg, {BRAND_BG} 0%, #FBF8F3 100%);
-        }}
+    css = f"""
+    <style>
+    .stApp {{
+        background:
+            radial-gradient(circle at top right, rgba(198,169,106,0.12), transparent 22%),
+            linear-gradient(180deg, {BRAND_BG} 0%, #FBF8F3 100%);
+    }}
 
-        [data-testid="stSidebar"] {{
-            background: linear-gradient(180deg, rgba(14,42,71,0.98) 0%, rgba(14,42,71,0.94) 100%);
-            border-right: 1px solid rgba(255,255,255,0.08);
-        }}
+    [data-testid="stSidebar"] {{
+        background: linear-gradient(180deg, rgba(14,42,71,0.98) 0%, rgba(14,42,71,0.94) 100%);
+        border-right: 1px solid rgba(255,255,255,0.08);
+    }}
 
-        [data-testid="stSidebar"] * {{
-            color: {BRAND_WHITE};
-        }}
+    [data-testid="stSidebar"] * {{
+        color: {BRAND_WHITE};
+    }}
 
-        .block-container {{
-            padding-top: 1.2rem;
-            padding-bottom: 2rem;
-        }}
+    .block-container {{
+        padding-top: 1.2rem;
+        padding-bottom: 2rem;
+    }}
 
-        h1, h2, h3, h4 {{
-            color: {BRAND_BLUE};
-            letter-spacing: -0.02em;
-        }}
+    h1, h2, h3, h4 {{
+        color: {BRAND_BLUE};
+        letter-spacing: -0.02em;
+    }}
 
-        .yvora-shell {{
-            max-width: 1240px;
-            margin: 0 auto;
-        }}
+    .yvora-shell {{
+        max-width: 1240px;
+        margin: 0 auto;
+    }}
 
-        .yvora-hero {{
-            background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(245,239,231,0.95) 100%);
-            border: 1px solid rgba(14,42,71,0.08);
-            box-shadow: 0 14px 36px rgba(14,42,71,0.08);
-            border-radius: 26px;
-            padding: 22px;
-            margin-bottom: 18px;
-        }}
+    .yvora-hero {{
+        background: linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(245,239,231,0.95) 100%);
+        border: 1px solid rgba(14,42,71,0.08);
+        box-shadow: 0 14px 36px rgba(14,42,71,0.08);
+        border-radius: 26px;
+        padding: 22px;
+        margin-bottom: 18px;
+    }}
 
-        .yvora-title {{
-            color: {BRAND_BLUE};
-            font-size: 2.15rem;
-            font-weight: 800;
-            margin: 0;
-            letter-spacing: -0.03em;
-        }}
+    .yvora-title {{
+        color: {BRAND_BLUE};
+        font-size: 2.15rem;
+        font-weight: 800;
+        margin: 0;
+        letter-spacing: -0.03em;
+    }}
 
-        .yvora-subtitle {{
-            color: {BRAND_MUTED};
-            font-size: 1rem;
-            line-height: 1.45rem;
-            margin-top: 8px;
-            max-width: 700px;
-        }}
+    .yvora-subtitle {{
+        color: {BRAND_MUTED};
+        font-size: 1rem;
+        line-height: 1.45rem;
+        margin-top: 8px;
+        max-width: 700px;
+    }}
 
-        .yvora-card {{
-            background: linear-gradient(180deg, {BRAND_CARD} 0%, {BRAND_SOFT} 100%);
-            border-radius: 22px;
-            padding: 18px 18px 14px 18px;
-            border: 1px solid rgba(14,42,71,0.08);
-            margin-bottom: 18px;
-            box-shadow: 0 10px 28px rgba(14,42,71,0.05);
-        }}
+    .yvora-card {{
+        background: linear-gradient(180deg, {BRAND_CARD} 0%, {BRAND_SOFT} 100%);
+        border-radius: 22px;
+        padding: 18px 18px 14px 18px;
+        border: 1px solid rgba(14,42,71,0.08);
+        margin-bottom: 18px;
+        box-shadow: 0 10px 28px rgba(14,42,71,0.05);
+    }}
 
-        .yvora-card-title {{
-            font-size: 1.28rem;
-            font-weight: 800;
-            color: {BRAND_BLUE};
-            margin-bottom: 4px;
-        }}
+    .yvora-card-title {{
+        font-size: 1.28rem;
+        font-weight: 800;
+        color: {BRAND_BLUE};
+        margin-bottom: 4px;
+    }}
 
-        .yvora-card-sub, .yvora-mini, .yvora-muted {{
-            color: {BRAND_MUTED};
-        }}
+    .yvora-card-sub, .yvora-mini, .yvora-muted {{
+        color: {BRAND_MUTED};
+    }}
 
-        .yvora-card-sub {{
-            font-size: 0.93rem;
-            margin-bottom: 10px;
-        }}
+    .yvora-card-sub {{
+        font-size: 0.93rem;
+        margin-bottom: 10px;
+    }}
 
-        .yvora-section-head {{
-            color: {BRAND_BLUE};
-            font-size: 1.02rem;
-            font-weight: 800;
-            margin: 6px 0 8px 0;
-        }}
+    .yvora-section-head {{
+        color: {BRAND_BLUE};
+        font-size: 1.02rem;
+        font-weight: 800;
+        margin: 6px 0 8px 0;
+    }}
 
-        .yvora-warn {{
-            background: {BRAND_WARN};
-            border-radius: 14px;
-            padding: 14px 16px;
-            border: 1px solid rgba(14,42,71,0.08);
-            color: {BRAND_BLUE};
-        }}
+    .yvora-warn {{
+        background: {BRAND_WARN};
+        border-radius: 14px;
+        padding: 14px 16px;
+        border: 1px solid rgba(14,42,71,0.08);
+        color: {BRAND_BLUE};
+    }}
 
-        .yvora-chip {{
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 11px;
-            border-radius: 999px;
-            border: 1px solid rgba(14,42,71,0.12);
-            color: {BRAND_BLUE};
-            font-size: 0.82rem;
-            font-weight: 600;
-            margin-right: 7px;
-            margin-top: 6px;
-            background: rgba(255,255,255,0.8);
-            white-space: nowrap;
-        }}
+    .yvora-chip {{
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 11px;
+        border-radius: 999px;
+        border: 1px solid rgba(14,42,71,0.12);
+        color: {BRAND_BLUE};
+        font-size: 0.82rem;
+        font-weight: 600;
+        margin-right: 7px;
+        margin-top: 6px;
+        background: rgba(255,255,255,0.8);
+        white-space: nowrap;
+    }}
 
-        .yvora-quote {{
-            background: rgba(255,255,255,0.86);
-            border: 1px solid rgba(14,42,71,0.08);
-            border-radius: 16px;
-            padding: 14px 15px;
-            margin: 14px 0 12px 0;
-            color: {BRAND_BLUE};
-            font-weight: 700;
-            font-size: 1rem;
-            line-height: 1.45rem;
-        }}
+    .yvora-quote {{
+        background: rgba(255,255,255,0.86);
+        border: 1px solid rgba(14,42,71,0.08);
+        border-radius: 16px;
+        padding: 14px 15px;
+        margin: 14px 0 12px 0;
+        color: {BRAND_BLUE};
+        font-weight: 700;
+        font-size: 1rem;
+        line-height: 1.45rem;
+    }}
 
-        .yvora-context {{
-            background: rgba(255,255,255,0.78);
-            border: 1px solid rgba(14,42,71,0.08);
-            border-radius: 18px;
-            padding: 15px;
-            margin: 12px 0;
-            color: {BRAND_BLUE};
-            font-size: 0.95rem;
-            line-height: 1.5rem;
-        }}
+    .yvora-context {{
+        background: rgba(255,255,255,0.78);
+        border: 1px solid rgba(14,42,71,0.08);
+        border-radius: 18px;
+        padding: 15px;
+        margin: 12px 0;
+        color: {BRAND_BLUE};
+        font-size: 0.95rem;
+        line-height: 1.5rem;
+    }}
 
-        .yvora-signal-box {{
-            background: rgba(255,255,255,0.78);
-            border: 1px solid rgba(14,42,71,0.08);
-            border-radius: 16px;
-            padding: 12px;
-            min-height: 72px;
-            height: 100%;
-        }}
+    .yvora-signal-box {{
+        background: rgba(255,255,255,0.78);
+        border: 1px solid rgba(14,42,71,0.08);
+        border-radius: 16px;
+        padding: 12px;
+        min-height: 72px;
+        height: 100%;
+    }}
 
-        .yvora-signal-label {{
-            color: {BRAND_MUTED};
-            font-size: 0.76rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            margin-bottom: 4px;
-        }}
+    .yvora-signal-label {{
+        color: {BRAND_MUTED};
+        font-size: 0.76rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 4px;
+    }}
 
-        .yvora-signal-value {{
-            color: {BRAND_BLUE};
-            font-size: 1.1rem;
-            font-weight: 800;
-            line-height: 1.2rem;
-        }}
+    .yvora-signal-value {{
+        color: {BRAND_BLUE};
+        font-size: 1.1rem;
+        font-weight: 800;
+        line-height: 1.2rem;
+    }}
 
-        .yvora-signal-sub {{
-            color: {BRAND_MUTED};
-            font-size: 0.82rem;
-            margin-top: 4px;
-            line-height: 1.1rem;
-        }}
+    .yvora-signal-sub {{
+        color: {BRAND_MUTED};
+        font-size: 0.82rem;
+        margin-top: 4px;
+        line-height: 1.1rem;
+    }}
 
+    .yvora-meters {{
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 10px 12px;
+        margin-top: 12px;
+    }}
+
+    .yvora-meter {{
+        background: rgba(255,255,255,0.78);
+        border: 1px solid rgba(14,42,71,0.08);
+        border-radius: 16px;
+        padding: 10px 11px;
+    }}
+
+    .yvora-meter-top {{
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        font-size: 0.87rem;
+        color: {BRAND_BLUE};
+        margin-bottom: 7px;
+        font-weight: 700;
+    }}
+
+    .yvora-bar {{
+        width: 100%;
+        height: 9px;
+        border-radius: 99px;
+        background: rgba(14,42,71,0.10);
+        overflow: hidden;
+    }}
+
+    .yvora-bar-fill {{
+        height: 9px;
+        border-radius: 99px;
+        background: linear-gradient(90deg, {BRAND_GOLD} 0%, rgba(14,42,71,0.85) 100%);
+        width: 0%;
+    }}
+
+    .yvora-summary {{
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        margin-top: 12px;
+    }}
+
+    .yvora-line {{
+        display: flex;
+        gap: 10px;
+        align-items: flex-start;
+        background: rgba(255,255,255,0.8);
+        border: 1px solid rgba(14,42,71,0.08);
+        padding: 12px 13px;
+        border-radius: 16px;
+        color: {BRAND_BLUE};
+        font-size: 0.95rem;
+        line-height: 1.38rem;
+    }}
+
+    .yvora-line span {{
+        white-space: normal;
+        word-break: normal;
+        overflow-wrap: break-word;
+    }}
+
+    .stMultiSelect label {{
+        color: {BRAND_BLUE};
+        font-weight: 700;
+    }}
+
+    [data-testid="stExpander"] {{
+        border: 1px solid rgba(14,42,71,0.08);
+        border-radius: 16px;
+        background: rgba(255,255,255,0.72);
+    }}
+
+    @media (max-width: 980px) {{
         .yvora-meters {{
-            display: grid;
-            grid-template-columns: repeat(3, minmax(0, 1fr));
-            gap: 10px 12px;
-            margin-top: 12px;
-        }}
-
-        .yvora-meter {{
-            background: rgba(255,255,255,0.78);
-            border: 1px solid rgba(14,42,71,0.08);
-            border-radius: 16px;
-            padding: 10px 11px;
-        }}
-
-        .yvora-meter-top {{
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 10px;
-            font-size: 0.87rem;
-            color: {BRAND_BLUE};
-            margin-bottom: 7px;
-            font-weight: 700;
-        }}
-
-        .yvora-bar {{
-            width: 100%;
-            height: 9px;
-            border-radius: 99px;
-            background: rgba(14,42,71,0.10);
-            overflow: hidden;
-        }}
-
-        .yvora-bar-fill {{
-            height: 9px;
-            border-radius: 99px;
-            background: linear-gradient(90deg, {BRAND_GOLD} 0%, rgba(14,42,71,0.85) 100%);
-            width: 0%;
-        }}
-
-        .yvora-summary {{
-            display: grid;
             grid-template-columns: 1fr;
-            gap: 10px;
-            margin-top: 12px;
         }}
-
-        .yvora-line {{
-            display: flex;
-            gap: 10px;
-            align-items: flex-start;
-            background: rgba(255,255,255,0.8);
-            border: 1px solid rgba(14,42,71,0.08);
-            padding: 12px 13px;
-            border-radius: 16px;
-            color: {BRAND_BLUE};
-            font-size: 0.95rem;
-            line-height: 1.38rem;
-        }}
-
-        .yvora-line span {{
-            white-space: normal;
-            word-break: normal;
-            overflow-wrap: break-word;
-        }}
-
-        .stMultiSelect label {{
-            color: {BRAND_BLUE};
-            font-weight: 700;
-        }}
-
-        [data-testid="stExpander"] {{
-            border: 1px solid rgba(14,42,71,0.08);
-            border-radius: 16px;
-            background: rgba(255,255,255,0.72);
-        }}
-
-        @media (max-width: 980px) {{
-            .yvora-meters {{
-                grid-template-columns: 1fr;
-            }}
-        }}
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    }}
+    </style>
+    """
+    st.markdown(css, unsafe_allow_html=True)
 
 
 def _signal_box(label: str, value: str, sub: str):
@@ -1050,8 +1051,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-"""
-path = Path("/mnt/data/app_yvora_pairing_correcao_completa.py")
-path.write_text(code, encoding="utf-8")
-print(path)
-	RTLU to=python_user_visible.exec code
