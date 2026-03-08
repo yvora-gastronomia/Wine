@@ -251,7 +251,7 @@ def set_page_style():
             border: 1px solid rgba(14,42,71,0.08);
             box-shadow: 0 14px 36px rgba(14,42,71,0.08);
             border-radius: 26px;
-            padding: 22px 22px 18px 22px;
+            padding: 22px;
             margin-bottom: 18px;
         }}
 
@@ -267,8 +267,8 @@ def set_page_style():
             color: {BRAND_MUTED};
             font-size: 1rem;
             line-height: 1.45rem;
-            margin-top: 6px;
-            max-width: 760px;
+            margin-top: 8px;
+            max-width: 700px;
         }}
 
         .yvora-card {{
@@ -328,7 +328,7 @@ def set_page_style():
             color: {BRAND_BLUE};
             font-weight: 700;
             font-size: 1rem;
-            line-height: 1.42rem;
+            line-height: 1.45rem;
         }}
 
         .yvora-context {{
@@ -336,7 +336,7 @@ def set_page_style():
             border: 1px solid rgba(14,42,71,0.08);
             border-radius: 18px;
             padding: 15px;
-            margin: 12px 0 12px 0;
+            margin: 12px 0;
             color: {BRAND_BLUE};
             font-size: 0.95rem;
             line-height: 1.5rem;
@@ -532,8 +532,7 @@ def header_area():
             <div class="yvora-hero">
               <div class="yvora-title">Wine Pairing</div>
               <div class="yvora-subtitle">
-                Escolha até 2 pratos e veja recomendações pensadas para decisão real.
-                Menos texto solto, mais leitura clara do vinho, da estratégia e do efeito no paladar.
+                Escolha até 2 pratos para ver a recomendação de vinho.
               </div>
             </div>
             """,
@@ -597,7 +596,6 @@ def standardize_menu(menu_df: pd.DataFrame) -> pd.DataFrame:
 
     m = out["id_prato"].eq("")
     out.loc[m, "id_prato"] = out.loc[m, "nome_prato"]
-
     out = out[(out["nome_prato"] != "") & (out["ativo"] == 1)].copy()
     return out.drop_duplicates(subset=["id_prato", "nome_prato"])
 
@@ -614,10 +612,6 @@ def _normalize_wine_type(raw: str) -> str:
         return "Branco"
     if "tinto" in t or "red" in t:
         return "Tinto"
-    if "laranja" in t or "orange" in t:
-        return "Laranja"
-    if "sobremesa" in t or "doce" in t or "dessert" in t or "porto" in t or "sherry" in t:
-        return "Sobremesa"
     return clean_display_text(raw.title())
 
 
@@ -660,7 +654,6 @@ def standardize_wines(wines_df: pd.DataFrame) -> pd.DataFrame:
 
     m = out["id_vinho"].eq("")
     out.loc[m, "id_vinho"] = out.loc[m, "nome_vinho"]
-
     return out[out["nome_vinho"] != ""].drop_duplicates(subset=["id_vinho", "nome_vinho"])
 
 
@@ -688,6 +681,11 @@ def standardize_pairings(pair_df: pd.DataFrame) -> pd.DataFrame:
         "perfil_custo_beneficio": "",
         "selo_harmonizacao": "",
         "a_melhor_para": "",
+        "frase_mesa": "",
+        "por_que_carne": "",
+        "por_que_queijo": "",
+        "por_que_combo": "",
+        "por_que_vale": "",
     }
     for c, default in defaults.items():
         if c not in p.columns:
@@ -718,6 +716,37 @@ def _badge_score(score_raw: str) -> Tuple[str, str]:
     return "Experimental", "🧪"
 
 
+def render_signal_grid(row: Dict, option_label: str):
+    score = to_int(row.get("score_harmonizacao", ""), 0)
+    score_label, score_icon = _badge_score(str(score))
+    strategy = clean_display_text(row.get("estrategia_harmonizacao", ""))
+    confidence = clean_display_text(row.get("nivel_confianca", ""))
+    role = clean_display_text(row.get("papel_do_vinho", ""))
+    seal = clean_display_text(row.get("selo_harmonizacao", ""))
+
+    items = [
+        (f"{score_icon} {option_label}", f"{score}/100" if score else "Sem score", score_label),
+        ("Estratégia", strategy or "Não informada", "Como o vinho entra"),
+        ("Papel do vinho", role or "Não informado", "O que ele faz"),
+        ("Confiança", confidence or "Não informada", seal or "Leitura final"),
+    ]
+
+    cards = []
+    for label, value, sub in items:
+        cards.append(
+            f"""
+            <div class="yvora-signal">
+              <div class="yvora-signal-label">{label}</div>
+              <div class="yvora-signal-value">{value}</div>
+              <div class="yvora-signal-sub">{sub}</div>
+            </div>
+            """
+        )
+
+    html = '<div class="yvora-signal-grid">' + "".join(cards) + "</div>"
+    st.markdown(html, unsafe_allow_html=True)
+
+
 def _parse_profile_line(text: str) -> Dict[str, str]:
     t = norm_text(text).lower()
     out: Dict[str, str] = {}
@@ -744,7 +773,6 @@ def _parse_profile_line(text: str) -> Dict[str, str]:
     m = re.search(r"(aromas?|perfil\s+arom[aá]tico)\s*[:=\-]\s*([^|\n]{3,90})", norm_text(text), flags=re.IGNORECASE)
     if m:
         out["aromas"] = clean_display_text(m.group(2))
-
     return out
 
 
@@ -780,60 +808,25 @@ def render_visual_profile(row: Dict):
     meter("Acidez", ac)
     meter("Corpo", co)
     meter("Tanino", ta)
-
     st.markdown("</div>", unsafe_allow_html=True)
 
     fi = prof.get("final", "")
     ar = prof.get("aromas", "")
-    if fi or ar:
-        line = []
-        if fi:
-            line.append(f"Final: {fi}")
-        if ar:
-            line.append(f"Aromas: {ar}")
-        st.markdown(f"<div class='yvora-mini'>{'  |  '.join(line)}</div>", unsafe_allow_html=True)
-
-
-def render_signal_grid(row: Dict, option_label: str):
-    score = to_int(row.get("score_harmonizacao", ""), 0)
-    score_label, score_icon = _badge_score(str(score))
-    strategy = clean_display_text(row.get("estrategia_harmonizacao", ""))
-    confidence = clean_display_text(row.get("nivel_confianca", ""))
-    role = clean_display_text(row.get("papel_do_vinho", ""))
-    seal = clean_display_text(row.get("selo_harmonizacao", ""))
-
-    items = [
-        (f"{score_icon} {option_label}", f"{score}/100" if score else "Sem score", score_label),
-        ("Estratégia", strategy or "Não informada", "Como o vinho entra"),
-        ("Papel do vinho", role or "Não informado", "O que ele faz"),
-        ("Confiança", confidence or "Não informada", seal or "Leitura final"),
-    ]
-
-    html = ['<div class="yvora-signal-grid">']
-    for label, value, sub in items:
-        html.append(
-            f"""
-            <div class="yvora-signal">
-              <div class="yvora-signal-label">{label}</div>
-              <div class="yvora-signal-value">{value}</div>
-              <div class="yvora-signal-sub">{sub}</div>
-            </div>
-            """
-        )
-    html.append("</div>")
-    st.markdown("".join(html), unsafe_allow_html=True)
+    bits = []
+    if fi:
+        bits.append(f"Final: {fi}")
+    if ar:
+        bits.append(f"Aromas: {ar}")
+    if bits:
+        st.markdown(f"<div class='yvora-mini'>{'  |  '.join(bits)}</div>", unsafe_allow_html=True)
 
 
 def render_icon_row(row: Dict, wine_type: str):
     chips = []
-
-    rot = clean_display_text(row.get("rotulo_valor", ""))
-    if rot:
-        chips.append(f"<span class='yvora-chip'>🏷️ {rot}</span>")
-
-    perfil = clean_display_text(row.get("perfil_vinho", ""))
-    if perfil:
-        chips.append(f"<span class='yvora-chip'>🍇 {perfil}</span>")
+    for icon, key in [("🏷️", "rotulo_valor"), ("🍇", "perfil_vinho"), ("✨", "estrategia_harmonizacao")]:
+        value = clean_display_text(row.get(key, ""))
+        if value:
+            chips.append(f"<span class='yvora-chip'>{icon} {value}</span>")
 
     if wine_type:
         chips.append(f"<span class='yvora-chip'>🍷 {wine_type}</span>")
@@ -842,43 +835,51 @@ def render_icon_row(row: Dict, wine_type: str):
     if score:
         chips.append(f"<span class='yvora-chip'>📈 Score {score}</span>")
 
-    penalty = to_int(row.get("diversidade_penalidade", ""), 0)
-    if penalty:
-        chips.append(f"<span class='yvora-chip'>🧠 Diversidade {penalty}</span>")
-
-    strategy = clean_display_text(row.get("estrategia_harmonizacao", ""))
-    if strategy:
-        chips.append(f"<span class='yvora-chip'>✨ {strategy}</span>")
-
     if chips:
         st.markdown("".join(chips), unsafe_allow_html=True)
 
 
-def build_summary_lines(row: Dict) -> Tuple[str, str, str]:
-    pc = clean_display_text(row.get("por_que_carne", ""))
-    pq = clean_display_text(row.get("por_que_queijo", ""))
+def ensure_connected_summary(row: Dict, dish_title: str) -> str:
+    frase = clean_display_text(row.get("frase_mesa", ""))
+    nome_vinho = clean_display_text(row.get("nome_vinho", ""))
+    prato = clean_display_text(dish_title)
     combo = clean_display_text(row.get("por_que_combo", ""))
 
-    if not pc:
-        pc = "O vinho foi escolhido para acompanhar a proteína sem perder presença no prato."
-    if not pq:
-        pq = "O vinho foi pensado para lidar com sal, gordura e textura do queijo."
-    if not combo:
-        combo = "A leitura final busca clareza no paladar e uma decisão fácil para o cliente."
+    if frase and nome_vinho.lower() in frase.lower() and prato.lower() in frase.lower():
+        return frase
 
+    combo_sentence = combo.split(". ")[0].strip() if combo else ""
+    if combo_sentence and nome_vinho and prato:
+        text = combo_sentence
+        if nome_vinho.lower() not in text.lower():
+            text = f"{nome_vinho} acompanha {prato} porque {text[:1].lower() + text[1:] if len(text) > 1 else text.lower()}"
+        elif prato.lower() not in text.lower():
+            text = f"{text} em {prato}"
+        return text.rstrip(".") + "."
+
+    if nome_vinho and prato:
+        return f"{nome_vinho} acompanha {prato} porque entrega estrutura e leitura clara no paladar."
+
+    return frase or combo or "-"
+
+
+def build_summary_lines(row: Dict) -> Tuple[str, str, str]:
+    pc = clean_display_text(row.get("por_que_carne", "")) or "O vinho foi escolhido para acompanhar a proteína sem perder presença no prato."
+    pq = clean_display_text(row.get("por_que_queijo", "")) or "O vinho foi pensado para lidar com sal, gordura e textura do queijo."
+    combo = clean_display_text(row.get("por_que_combo", "")) or "A leitura final busca clareza no paladar e uma decisão fácil para o cliente."
     return pc, pq, combo
 
 
 def render_recos_block(title: str, p_subset: pd.DataFrame, wines_type_map: Dict[str, str], wines_meta_map: Dict[str, Dict[str, str]]):
     st.markdown("<div class='yvora-card'>", unsafe_allow_html=True)
     st.markdown(f"<div class='yvora-card-title'>{title}</div>", unsafe_allow_html=True)
-    st.markdown("<div class='yvora-card-sub'>Sugestões organizadas para decisão rápida, com score, estratégia e papel do vinho.</div>", unsafe_allow_html=True)
+    st.markdown(
+        "<div class='yvora-card-sub'>Sugestões organizadas para decisão rápida, com score, estratégia e leitura sensorial do prato.</div>",
+        unsafe_allow_html=True,
+    )
 
     p_subset = p_subset.copy()
-    if "score_harmonizacao" in p_subset.columns:
-        p_subset["score_ord"] = p_subset["score_harmonizacao"].apply(lambda x: to_int(x, 0))
-    else:
-        p_subset["score_ord"] = 0
+    p_subset["score_ord"] = p_subset["score_harmonizacao"].apply(lambda x: to_int(x, 0))
     p_subset = p_subset.sort_values(["score_ord", "nome_vinho"], ascending=[False, True]).head(2)
 
     for idx, (_, row) in enumerate(p_subset.iterrows()):
@@ -896,38 +897,28 @@ def render_recos_block(title: str, p_subset: pd.DataFrame, wines_type_map: Dict[
         render_signal_grid(row, option_label)
         render_icon_row(row, wine_type)
 
-        frase = clean_display_text(row.get("frase_mesa", ""))
-        if frase:
-            st.markdown(
-                f"<div class='yvora-quote'>💬 {frase}</div>",
-                unsafe_allow_html=True,
-            )
+        resumo = ensure_connected_summary(row, title)
+        st.markdown(f"<div class='yvora-quote'>💬 {resumo}</div>", unsafe_allow_html=True)
 
         render_visual_profile(row)
 
-        role = clean_display_text(row.get("papel_do_vinho", ""))
-        confidence = clean_display_text(row.get("nivel_confianca", ""))
-        score_reason = clean_display_text(row.get("motivo_score", ""))
-        seal = clean_display_text(row.get("selo_harmonizacao", ""))
-        score = to_int(row.get("score_harmonizacao", ""), 0)
-
         context_parts = []
-        if score:
-            context_parts.append(f"<b>Score de harmonização:</b> {score}/100")
-        if role:
-            context_parts.append(f"<b>Papel do vinho:</b> {role}")
-        if confidence:
-            context_parts.append(f"<b>Confiança:</b> {confidence}")
-        if seal:
-            context_parts.append(f"<b>Selo:</b> {seal}")
-        if score_reason:
-            context_parts.append(f"<b>Motivo técnico:</b> {score_reason}")
+        score = to_int(row.get("score_harmonizacao", ""), 0)
+        for label, key in [
+            ("Score de harmonização", "score_harmonizacao"),
+            ("Papel do vinho", "papel_do_vinho"),
+            ("Confiança", "nivel_confianca"),
+            ("Selo", "selo_harmonizacao"),
+            ("Motivo técnico", "motivo_score"),
+        ]:
+            value = clean_display_text(row.get(key, ""))
+            if key == "score_harmonizacao" and score:
+                context_parts.append(f"<b>{label}:</b> {score}/100")
+            elif key != "score_harmonizacao" and value:
+                context_parts.append(f"<b>{label}:</b> {value}")
 
         if context_parts:
-            st.markdown(
-                f"<div class='yvora-context'>{'<br>'.join(context_parts)}</div>",
-                unsafe_allow_html=True,
-            )
+            st.markdown(f"<div class='yvora-context'>{'<br>'.join(context_parts)}</div>", unsafe_allow_html=True)
 
         l1, l2, l3 = build_summary_lines(row)
         st.markdown(
@@ -961,11 +952,7 @@ def render_recos_block(title: str, p_subset: pd.DataFrame, wines_type_map: Dict[
 
 def render_client(menu: pd.DataFrame, wines: pd.DataFrame, pairings: pd.DataFrame):
     st.markdown("<div class='yvora-section-head'>Escolha seus pratos</div>", unsafe_allow_html=True)
-    st.markdown(
-        "<div class='yvora-muted'>Selecione 1 ou 2 pratos. O app mostra apenas vinhos com estoque disponível e prioriza leitura objetiva para decisão.</div>",
-        unsafe_allow_html=True,
-    )
-    st.write("")
+    st.markdown("<div class='yvora-muted'>Selecione 1 ou 2 pratos. O app mostra apenas vinhos com estoque disponível.</div>", unsafe_allow_html=True)
 
     selected_names = st.multiselect(
         "Selecione 1 ou 2 pratos",
@@ -1028,10 +1015,7 @@ def render_client(menu: pd.DataFrame, wines: pd.DataFrame, pairings: pd.DataFram
 
 def render_dm(menu: pd.DataFrame, wines: pd.DataFrame, pairings: pd.DataFrame):
     st.markdown("<div class='yvora-section-head'>Diagnóstico DM</div>", unsafe_allow_html=True)
-    st.markdown(
-        "<div class='yvora-muted'>Leitura rápida da base carregada e dos campos técnicos disponíveis.</div>",
-        unsafe_allow_html=True,
-    )
+    st.markdown("<div class='yvora-muted'>Leitura rápida da base carregada e dos campos técnicos disponíveis.</div>", unsafe_allow_html=True)
 
     st.write(f"Menu hash: `{sheet_hash(menu)}`")
     st.write(f"Vinhos hash: `{sheet_hash(wines)}`")
@@ -1041,28 +1025,6 @@ def render_dm(menu: pd.DataFrame, wines: pd.DataFrame, pairings: pd.DataFrame):
     available_ids = {w["id_vinho"] for w in wines_dict if is_wine_available_now(w)}
     st.write(f"Vinhos disponíveis agora: **{len(available_ids)}**")
     st.write(f"Linhas de pairings ativas: **{len(pairings)}**")
-
-    sample_cols = [c for c in [
-        "score_harmonizacao",
-        "estrategia_harmonizacao",
-        "papel_do_vinho",
-        "nivel_confianca",
-        "estrutura_match",
-        "acidez_match",
-        "tanino_match",
-        "ponte_aromatica",
-        "risco_sensorial",
-        "contador_uso_vinho",
-        "diversidade_penalidade",
-        "selo_harmonizacao",
-    ] if c in pairings.columns]
-
-    if sample_cols:
-        st.markdown("### Campos técnicos encontrados")
-        st.write(sample_cols)
-
-    st.markdown("### Padrão necessário para o perfil do vinho")
-    st.caption("Em a_melhor_para: acidez: X/5 | corpo: X/5 | tanino: X/5 | final: curto/médio/longo | aromas: ...")
 
 
 def main():
