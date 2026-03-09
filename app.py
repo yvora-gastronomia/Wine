@@ -1,16 +1,17 @@
 import hashlib
 import io
 import re
-from pathlib import Path
 import unicodedata
+from pathlib import Path
 from typing import Dict, List, Optional, Tuple
-from urllib.parse import urlparse, parse_qs, urlencode
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import pandas as pd
 import requests
 import streamlit as st
 
 APP_TITLE = "YVORA Wine Pairing"
+
 BRAND_BG = "#EFE7DD"
 BRAND_BLUE = "#0E2A47"
 BRAND_MUTED = "#6B7785"
@@ -72,7 +73,7 @@ def to_int(x, default: int = 0) -> int:
     if s == "":
         return default
     try:
-        return int(float(s))
+        return int(float(s.replace(",", ".")))
     except Exception:
         return default
 
@@ -85,6 +86,13 @@ def to_float(x) -> Optional[float]:
         return float(s)
     except Exception:
         return None
+
+
+def safe_numeric_series(series: pd.Series) -> pd.Series:
+    return pd.to_numeric(
+        series.astype(str).str.replace(",", ".", regex=False).str.extract(r"(-?\d+(?:\.\d+)?)", expand=False),
+        errors="coerce",
+    )
 
 
 def sheet_hash(df: pd.DataFrame) -> str:
@@ -866,6 +874,7 @@ def standardize_pairings(pair_df: pd.DataFrame) -> pd.DataFrame:
         "por_que_queijo": "",
         "por_que_combo": "",
         "por_que_vale": "",
+        "ordem_recomendacao": "",
     }
     for c, default in defaults.items():
         if c not in p.columns:
@@ -879,6 +888,9 @@ def standardize_pairings(pair_df: pd.DataFrame) -> pd.DataFrame:
     for c in p.columns:
         if p[c].dtype == object:
             p[c] = p[c].apply(clean_display_text)
+
+    p["score_ord"] = safe_numeric_series(p["score_harmonizacao"]).fillna(0)
+    p["ordem_ord"] = safe_numeric_series(p["ordem_recomendacao"]).fillna(999)
 
     return p[p["ativo"] == 1].copy()
 
@@ -917,6 +929,32 @@ def header_area():
         )
 
 
+def sort_pairings_subset(p_subset: pd.DataFrame) -> pd.DataFrame:
+    p_subset = p_subset.copy()
+
+    if "ordem_ord" not in p_subset.columns:
+        p_subset["ordem_ord"] = safe_numeric_series(p_subset.get("ordem_recomendacao", pd.Series([], dtype=str))).fillna(999)
+    if "score_ord" not in p_subset.columns:
+        p_subset["score_ord"] = safe_numeric_series(p_subset.get("score_harmonizacao", pd.Series([], dtype=str))).fillna(0)
+
+    has_explicit_order = (p_subset["ordem_ord"] < 999).any()
+
+    if has_explicit_order:
+        p_subset = p_subset.sort_values(
+            ["ordem_ord", "score_ord", "nome_vinho"],
+            ascending=[True, False, True],
+            kind="mergesort",
+        )
+    else:
+        p_subset = p_subset.sort_values(
+            ["score_ord", "nome_vinho"],
+            ascending=[False, True],
+            kind="mergesort",
+        )
+
+    return p_subset.head(2)
+
+
 def render_recos_block(
     title: str,
     p_subset: pd.DataFrame,
@@ -933,9 +971,7 @@ def render_recos_block(
         sub = "Sugestões organizadas para decisão rápida, com estratégia e leitura sensorial do prato."
     st.markdown(f"<div class='yvora-card-sub'>{sub}</div>", unsafe_allow_html=True)
 
-    p_subset = p_subset.copy()
-    p_subset["score_ord"] = p_subset["score_harmonizacao"].apply(lambda x: to_int(x, 0))
-    p_subset = p_subset.sort_values(["score_ord", "nome_vinho"], ascending=[False, True]).head(2)
+    p_subset = sort_pairings_subset(p_subset)
 
     for idx, (_, row) in enumerate(p_subset.iterrows()):
         nome_vinho = clean_display_text(row.get("nome_vinho", ""))
@@ -1085,6 +1121,22 @@ def render_dm(menu: pd.DataFrame, wines: pd.DataFrame, pairings: pd.DataFrame):
     available_ids = {w["id_vinho"] for w in wines_dict if is_wine_available_now(w)}
     st.write(f"Vinhos disponíveis agora: **{len(available_ids)}**")
     st.write(f"Linhas de pairings ativas: **{len(pairings)}**")
+
+    st.markdown("### Verificação de ordenação")
+    debug_cols = [
+        "chave_pratos",
+        "id_vinho",
+        "nome_vinho",
+        "ordem_recomendacao",
+        "score_harmonizacao",
+        "score_ord",
+        "ativo",
+    ]
+    for c in debug_cols:
+        if c not in pairings.columns:
+            pairings[c] = ""
+
+    st.dataframe(pairings[debug_cols].sort_values(["chave_pratos", "score_ord"], ascending=[True, False]), use_container_width=True)
 
 
 def dm_login_block() -> bool:
